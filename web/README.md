@@ -1,49 +1,36 @@
-# Disaster Response System - Frontend
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-このディレクトリは災害対応システムのフロントエンド実装用です。
+## Getting Started
 
-## 構成予定
+First, run the development server:
 
-```
-web/
-├── public/          # 静的ファイル
-├── src/             # Next.js/React実装
-│   ├── components/  # UIコンポーネント
-│   ├── pages/       # ページコンポーネント
-│   ├── hooks/       # カスタムフック
-│   ├── utils/       # ユーティリティ
-│   └── types/       # TypeScript型定義
-└── functions/       # Cloud Functions
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-## 技術スタック
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-- Next.js 14 + TypeScript
-- Firestore SDK (リアルタイム更新)
-- Google Maps JavaScript API
-- Tailwind CSS
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## 主要機能
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-1. **災害情報ダッシュボード**
-   - リアルタイム災害情報表示
-   - 地図ベースの可視化
-   - 影響地域・避難所情報
+## Learn More
 
-2. **モバイル対応**
-   - レスポンシブデザイン
-   - PWA対応
-   - プッシュ通知
+To learn more about Next.js, take a look at the following resources:
 
-3. **アクセシビリティ**
-   - 緊急時軽量版
-   - 多言語対応
-   - 色弱対応
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## データソース
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-- Firestore: `incidents`, `bulletins`, `analysis_results`
-- リアルタイム更新: Firestore リスナー
-- 地図データ: Google Maps API
+## Deploy on Vercel
 
-別チームでの実装をお待ちしています。
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
