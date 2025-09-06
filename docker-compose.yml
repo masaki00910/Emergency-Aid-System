@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  detection-agent:
+    build:
+      context: ./agents/detection
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_REGION=${GOOGLE_CLOUD_REGION:-asia-northeast1}
+    volumes:
+      - ./shared:/app/shared
+      - ./agents/common:/app/agents/common
+
+  orchestrator-agent:
+    build:
+      context: ./agents/orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8080"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_REGION=${GOOGLE_CLOUD_REGION:-asia-northeast1}
+    volumes:
+      - ./shared:/app/shared
+      - ./agents/common:/app/agents/common
+
+  info-collector-agent:
+    build:
+      context: ./agents/info_collector
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8080"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_REGION=${GOOGLE_CLOUD_REGION:-asia-northeast1}
+    volumes:
+      - ./shared:/app/shared
+      - ./agents/common:/app/agents/common
+
+  analyzer-agent:
+    build:
+      context: ./agents/analyzer
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8080"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_REGION=${GOOGLE_CLOUD_REGION:-asia-northeast1}
+    volumes:
+      - ./shared:/app/shared
+      - ./agents/common:/app/agents/common
+
+  pr-agent:
+    build:
+      context: ./agents/pr
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8080"
+    environment:
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_REGION=${GOOGLE_CLOUD_REGION:-asia-northeast1}
+    volumes:
+      - ./shared:/app/shared
+      - ./agents/common:/app/agents/common
+
+networks:
+  default:
+    name: disaster-response-network

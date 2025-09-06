@@ -1,0 +1,9 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: [
+    'build',
+    '-t', 'gcr.io/sharelabai-hackathon2/pr-agent:latest',
+    '-f', 'agents/pr/Dockerfile',
+    '.'
+  ]
+images: ['gcr.io/sharelabai-hackathon2/pr-agent:latest']

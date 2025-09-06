@@ -1,0 +1,9 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+feedparser==6.0.10
+httpx==0.25.2
+beautifulsoup4==4.12.2
+google-cloud-pubsub==2.18.4
+google-cloud-aiplatform==1.38.1
+google-cloud-firestore==2.13.1
+pydantic==2.5.0
