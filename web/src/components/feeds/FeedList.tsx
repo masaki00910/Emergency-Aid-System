@@ -7,15 +7,32 @@ function timeAgo(ts: number) {
   return `${h}時間前`
 }
 
-export default function FeedList({ items }: { items: FeedItem[] }) {
+export default function FeedList({
+  items,
+  highlightId,
+}: {
+  items: FeedItem[]
+  highlightId?: string
+}) {
+  const sorted = [...items].sort((a, b) => {
+    if (a.id === highlightId) return -1
+    if (b.id === highlightId) return 1
+    return b.publishedAt - a.publishedAt
+  })
+
   return (
     <div className="rounded-xl border bg-white shadow-sm text-zinc-900 p-0">
       <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm px-4 py-3 border-b">
         <h2 className="text-xl font-semibold">最新フィード</h2>
       </div>
       <ul className="px-4 py-3 space-y-3 max-h-[72vh] overflow-y-auto">
-        {items.map(f => (
-          <li key={f.id} className="rounded-lg border p-3">
+        {sorted.map(f => (
+          <li
+            key={f.id}
+            className={`rounded-lg border p-3 transition-all duration-300 ${
+              f.id === highlightId ? 'bg-amber-50' : 'bg-white'
+            }`}
+          >
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm text-zinc-600 mb-1">

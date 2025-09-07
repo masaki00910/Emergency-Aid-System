@@ -2,13 +2,14 @@ export type FeedSource = 'nhk' | 'jma' | 'tenki' | 'x' | 'news' | 'other'
 
 export type FeedItem = {
   id: string
+  incidentId?: string
   source: FeedSource
   title: string
   summary?: string
   url: string
-  publishedAt: number     
-  labels?: string[]      
+  publishedAt: number
+  labels?: string[]
   area?: string
   hazard?: string
-  isAlertCandidate?: boolean 
+  isAlertCandidate?: boolean
 }
