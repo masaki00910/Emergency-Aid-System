@@ -2,7 +2,7 @@ type StatProps = { label: string; value: number; icon?: string }
 
 function StatCard({ label, value, icon = '⚠️' }: StatProps) {
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
+    <div className="rounded-xl border bg-white p-4 shadow-sm text-zinc-900">
       <div className="flex items-center gap-3">
         <div className="text-2xl">{icon}</div>
         <div>

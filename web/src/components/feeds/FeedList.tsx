@@ -9,24 +9,26 @@ function timeAgo(ts: number) {
 
 export default function FeedList({ items }: { items: FeedItem[] }) {
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm">
-      <h2 className="text-xl font-semibold mb-3">最新フィード</h2>
-      <ul className="space-y-3">
+    <div className="rounded-xl border bg-white shadow-sm text-zinc-900 p-0">
+      <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-sm px-4 py-3 border-b">
+        <h2 className="text-xl font-semibold">最新フィード</h2>
+      </div>
+      <ul className="px-4 py-3 space-y-3 max-h-[72vh] overflow-y-auto">
         {items.map(f => (
           <li key={f.id} className="rounded-lg border p-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm text-zinc-500 mb-1">
+                <div className="text-sm text-zinc-600 mb-1">
                   {f.source.toUpperCase()} ・ {timeAgo(f.publishedAt)}
                 </div>
                 <a className="font-medium hover:underline" href={f.url} target="_blank" rel="noreferrer">
                   {f.title}
                 </a>
-                {f.summary && <p className="text-sm text-zinc-600 mt-1">{f.summary}</p>}
+                {f.summary && <p className="text-sm mt-1">{f.summary}</p>}
                 {f.labels && f.labels.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {f.labels.map(l => (
-                      <span key={l} className="inline-block rounded-full border px-2 py-0.5 text-xs bg-zinc-50">
+                      <span key={l} className="inline-block rounded-full border px-2 py-0.5 text-xs bg-zinc-50 text-zinc-700">
                         {l}
                       </span>
                     ))}
