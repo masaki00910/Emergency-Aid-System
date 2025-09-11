@@ -16,14 +16,14 @@ export function useIncidents() {
    q,
    snap => {
     const next = snap.docs.map(d => {
-     const data = d.data() as any
+     const data = d.data() as Record<string, unknown>
      return {
       id: d.id,
-      title: data.title ?? 'Untitled',
-      lat: data.lat,
-      lng: data.lng,
-      severity: data.severity ?? 'low',
-      reportedAt: data.reportedAt ?? Date.now(),
+      title: (data.title as string) ?? 'Untitled',
+      lat: data.lat as number,
+      lng: data.lng as number,
+      severity: (data.severity as string) ?? 'low',
+      reportedAt: (data.reportedAt as number) ?? Date.now(),
      } as Incident
     })
     setIncidents(next)

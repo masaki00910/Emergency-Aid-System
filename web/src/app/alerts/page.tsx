@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import Sidebar from '@/components/layout/Sidebar'
-import { mockAlerts } from '@/mocks/data'
+import { mockAlerts, mockIncidents } from '@/mocks/data'
 
 type AlertLevel = 'Active' | 'non-Active' | 'all'
-type AlertTag = '大雨' | '地震' | '土砂災害' | '台風' | '津波' | 'all'
+type AlertTag = 'flood' | 'earthquake' | 'landslide' | 'typhoon' | 'tsunami' | 'other' | 'all'
 
 export default function AlertsPage() {
   const [selectedLevel, setSelectedLevel] = useState<AlertLevel>('all')
@@ -13,8 +14,18 @@ export default function AlertsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
 
+  // Combine alerts and incidents for display
+  const allAlerts = [
+    ...mockAlerts.map(alert => ({ ...alert, severity: alert.level === 'warning' ? 'high' : alert.level === 'watch' ? 'medium' : 'low' })),
+    ...mockIncidents.map(incident => ({ 
+      ...incident, 
+      level: incident.severity === 'high' ? 'warning' : incident.severity === 'medium' ? 'watch' : 'info',
+      startedAt: incident.reportedAt 
+    }))
+  ]
+
   // フィルタリング
-  const filteredAlerts = mockAlerts.filter(alert => {
+  const filteredAlerts = allAlerts.filter(alert => {
     const levelMatch = selectedLevel === 'all' || 
       (selectedLevel === 'Active' && alert.severity === 'high') ||
       (selectedLevel === 'non-Active' && alert.severity !== 'high')
@@ -23,13 +34,14 @@ export default function AlertsPage() {
     
     const searchMatch = searchQuery === '' || 
       alert.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      alert.area.toLowerCase().includes(searchQuery.toLowerCase())
+      (alert.area && alert.area.toLowerCase().includes(searchQuery.toLowerCase()))
     
     return levelMatch && tagMatch && searchMatch
   })
 
-  const activeCount = mockAlerts.filter(a => a.severity === 'high').length
-  const todayCount = mockAlerts.filter(a => {
+  const activeCount = allAlerts.filter(a => a.severity === 'high').length
+  const todayCount = allAlerts.filter(a => {
+    if (!a.startedAt) return false
     const today = new Date().toDateString()
     return new Date(a.startedAt).toDateString() === today
   }).length
@@ -55,12 +67,23 @@ export default function AlertsPage() {
 
   const getTagColor = (tag: string) => {
     switch(tag) {
-      case '大雨': return 'bg-blue-100 text-blue-800'
-      case '地震': return 'bg-red-100 text-red-800'
-      case '台風': return 'bg-purple-100 text-purple-800'
-      case '土砂災害': return 'bg-yellow-100 text-yellow-800'
-      case '津波': return 'bg-cyan-100 text-cyan-800'
+      case 'flood': return 'bg-blue-100 text-blue-800'
+      case 'earthquake': return 'bg-red-100 text-red-800'
+      case 'typhoon': return 'bg-purple-100 text-purple-800'
+      case 'landslide': return 'bg-yellow-100 text-yellow-800'
+      case 'tsunami': return 'bg-cyan-100 text-cyan-800'
       default: return 'bg-gray-100 text-gray-800'
+    }
+  }
+  
+  const getHazardDisplayName = (hazard: string) => {
+    switch(hazard) {
+      case 'flood': return '大雨'
+      case 'earthquake': return '地震'
+      case 'typhoon': return '台風'
+      case 'landslide': return '土砂災害'
+      case 'tsunami': return '津波'
+      default: return 'その他'
     }
   }
 
@@ -97,11 +120,12 @@ export default function AlertsPage() {
               onChange={(e) => setSelectedTag(e.target.value as AlertTag)}
             >
               <option value="all">Tag</option>
-              <option value="大雨">大雨</option>
-              <option value="地震">地震</option>
-              <option value="土砂災害">土砂災害</option>
-              <option value="台風">台風</option>
-              <option value="津波">津波</option>
+              <option value="flood">大雨</option>
+              <option value="earthquake">地震</option>
+              <option value="landslide">土砂災害</option>
+              <option value="typhoon">台風</option>
+              <option value="tsunami">津波</option>
+              <option value="other">その他</option>
             </select>
             
             <input
@@ -175,56 +199,57 @@ export default function AlertsPage() {
         {/* アラート一覧 */}
         <div className="space-y-4">
           {filteredAlerts.map((alert, index) => (
-            <div
-              key={alert.id}
-              className={`rounded-xl border-2 p-4 ${getSeverityColor(alert.severity)}`}
-            >
-              <div className="flex items-start gap-4">
-                <div className="text-3xl">{getHazardIcon(alert.hazard)}</div>
-                
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                      alert.severity === 'high' ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'
-                    }`}>
-                      {alert.severity === 'high' ? 'Active' : 'non-Active'}
-                    </span>
-                    <div className="flex gap-1">
-                      {alert.hazard && (
-                        <span className={`px-2 py-1 rounded text-xs ${getTagColor(alert.hazard)}`}>
-                          {alert.hazard}
-                        </span>
-                      )}
-                      {['特別警報', '警報', '注意報'].map((tag, i) => {
-                        if (Math.random() > 0.6) {
-                          return (
-                            <span key={i} className="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800">
-                              {tag}
-                            </span>
-                          )
-                        }
-                        return null
-                      })}
+            <Link key={alert.id} href={`/alerts/${alert.id}`}>
+              <div
+                className={`rounded-xl border-2 p-4 cursor-pointer hover:shadow-lg transition-shadow ${getSeverityColor(alert.severity)}`}
+              >
+                <div className="flex items-start gap-4">
+                  <div className="text-3xl">{getHazardIcon(alert.hazard)}</div>
+                  
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                        alert.severity === 'high' ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'
+                      }`}>
+                        {alert.severity === 'high' ? 'Active' : 'non-Active'}
+                      </span>
+                      <div className="flex gap-1">
+                        {alert.hazard && (
+                          <span className={`px-2 py-1 rounded text-xs ${getTagColor(alert.hazard)}`}>
+                            {getHazardDisplayName(alert.hazard)}
+                          </span>
+                        )}
+                        {['特別警報', '警報', '注意報'].map((tag, i) => {
+                          if (Math.random() > 0.6) {
+                            return (
+                              <span key={i} className="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800">
+                                {tag}
+                              </span>
+                            )
+                          }
+                          return null
+                        })}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="font-semibold text-lg mb-1">{alert.title}</div>
-                  
-                  <div className="text-sm text-gray-600 mb-2">
-                    <div>○○県・△△地域・××市</div>
-                    <div>AAIR・BBR・CCR・DDR・EER・...</div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-gray-500">
-                      ソース：{['気象庁', 'NHK', '消防庁'][index % 3]} | 
-                      アラート発生：{new Date(alert.startedAt).toLocaleString('ja-JP')} | 
-                      最終更新：{new Date(alert.startedAt).toLocaleString('ja-JP')}
+                    
+                    <div className="font-semibold text-lg mb-1">{alert.title}</div>
+                    
+                    <div className="text-sm text-gray-600 mb-2">
+                      <div>{alert.area}県・{alert.area}地域・{alert.area}市</div>
+                      <div>詳細を見る →</div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="text-xs text-gray-500">
+                        ソース：{['気象庁', 'NHK', '消防庁'][index % 3]} | 
+                        アラート発生：{alert.startedAt ? new Date(alert.startedAt).toLocaleString('ja-JP') : '-'} | 
+                        最終更新：{alert.startedAt ? new Date(alert.startedAt).toLocaleString('ja-JP') : '-'}
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
