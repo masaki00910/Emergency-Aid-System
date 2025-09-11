@@ -2,6 +2,7 @@ steps:
 - name: 'gcr.io/cloud-builders/docker'
   args: [
     'build',
+    '--no-cache',
     '-t', 'gcr.io/sharelabai-hackathon2/orchestrator-agent:latest',
     '-f', 'agents/orchestrator/Dockerfile',
     '.'

@@ -12,8 +12,15 @@ from analyzer_agent import DisasterAnalyzerAgent
 from shared.models.disaster import AgentTask
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
+logger.info("Analyzer Agent starting with enhanced logging")
 
 app = FastAPI(title="Disaster Analyzer Agent")
 analyzer = DisasterAnalyzerAgent()

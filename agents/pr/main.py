@@ -4,6 +4,7 @@ import json
 import base64
 import logging
 from datetime import datetime
+from google.cloud import firestore
 
 from fastapi import FastAPI, BackgroundTasks, Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -12,8 +13,15 @@ from pr_agent import PRAgent
 from shared.models.disaster import AgentTask
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
+logger.info("PR Agent starting with enhanced logging")
 
 app = FastAPI(title="PR Agent")
 pr_agent = PRAgent()
@@ -98,7 +106,7 @@ async def get_event_bulletins(event_id: str):
 @app.get("/latest")
 async def get_latest_bulletins(limit: int = 10):
     try:
-        bulletins_ref = (self.gcp.firestore.collection('bulletins')
+        bulletins_ref = (pr_agent.gcp.firestore.collection('bulletins')
                         .order_by('published_at', direction=firestore.Query.DESCENDING)
                         .limit(limit))
         bulletins = [doc.to_dict() for doc in bulletins_ref.stream()]

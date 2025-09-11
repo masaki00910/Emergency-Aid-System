@@ -7,6 +7,7 @@ import httpx
 import feedparser
 from bs4 import BeautifulSoup
 import logging
+from google.cloud import firestore
 
 from agents.common.base_agent import BaseAgent
 from shared.models.disaster import AgentTask, AgentResult, TaskStatus, Evidence
@@ -22,7 +23,8 @@ class InfoCollectorAgent(BaseAgent):
         self.news_sources = [
             {"url": "https://www3.nhk.or.jp/rss/news/cat0.xml", "source": "nhk", "type": "news"},
             {"url": "https://news.yahoo.co.jp/rss/topics/top-picks.xml", "source": "yahoo", "type": "news"},
-            {"url": "https://www.jma.go.jp/bosai/forecast/data/forecast/rss/region.xml", "source": "jma", "type": "official"}
+            # JMA RSS URL temporarily disabled due to 404 error
+            # {"url": "https://www.jma.go.jp/bosai/forecast/data/forecast/rss/region.xml", "source": "jma", "type": "official"}
         ]
         
     async def process(self, task: AgentTask) -> AgentResult:
@@ -84,29 +86,40 @@ class InfoCollectorAgent(BaseAgent):
             )
     
     async def _collect_news_info(self, disaster_type: str, location: Dict[str, Any], time_window_hours: int) -> List[Dict[str, Any]]:
+        logger.info(f"DEBUG: Starting news collection - disaster_type: {disaster_type}, time_window_hours: {time_window_hours}")
         news_items = []
         cutoff_time = datetime.utcnow() - timedelta(hours=time_window_hours)
+        logger.info(f"DEBUG: Cutoff time: {cutoff_time}")
         
         for source in self.news_sources:
             if source["type"] != "news":
                 continue
                 
             try:
+                logger.info(f"DEBUG: Fetching from {source['source']} - {source['url']}")
                 async with httpx.AsyncClient() as client:
                     response = await client.get(source["url"], timeout=30.0)
                     response.raise_for_status()
                 
                 feed = feedparser.parse(response.content)
+                logger.info(f"DEBUG: Got {len(feed.entries)} entries from {source['source']}")
                 
                 for entry in feed.entries[:20]:
                     try:
                         entry_time = self._parse_entry_time(entry)
+                        title = entry.get("title", "No title")
+                        logger.info(f"DEBUG: Processing entry: {title[:50]}... Time: {entry_time}")
+                        
                         if entry_time and entry_time < cutoff_time:
+                            logger.info(f"DEBUG: Skipping old entry: {title[:50]}...")
                             continue
                         
                         content = self._extract_content(entry)
                         
-                        if await self._is_relevant_to_disaster(content, disaster_type, location):
+                        is_relevant = await self._is_relevant_to_disaster(content, disaster_type, location)
+                        logger.info(f"DEBUG: Relevance check for '{title[:50]}...': {is_relevant}")
+                        
+                        if is_relevant:
                             news_items.append({
                                 "source": source["source"],
                                 "type": "news",
@@ -116,12 +129,15 @@ class InfoCollectorAgent(BaseAgent):
                                 "timestamp": entry_time or datetime.utcnow(),
                                 "raw_entry": entry
                             })
+                            logger.info(f"DEBUG: Added relevant news item: {title[:50]}...")
                     except Exception as e:
                         logger.error(f"Failed to process news entry: {e}")
-                        
+                
+                logger.info(f"DEBUG: Collected {len([item for item in news_items if item['source'] == source['source']])} items from {source['source']}")
             except Exception as e:
-                logger.error(f"Failed to fetch news from {source['url']}: {e}")
+                logger.error(f"Failed to fetch from {source['source']}: {e}")
         
+        logger.info(f"DEBUG: Total news items collected: {len(news_items)}")
         return news_items
     
     async def _collect_official_info(self, disaster_type: str, location: Dict[str, Any], time_window_hours: int) -> List[Dict[str, Any]]:
@@ -195,19 +211,120 @@ class InfoCollectorAgent(BaseAgent):
     
     async def _is_relevant_to_disaster(self, content: str, disaster_type: str, location: Dict[str, Any]) -> bool:
         try:
+            # More comprehensive disaster relevance checking
             prompt = f"""
-以下のニュース内容が災害「{disaster_type}」および地域「{location.get('admin', '')}」に関連するかを判定してください。
+以下のニュース内容が災害情報として収集すべき内容かを判定してください。
 
-内容:
-{content[:1000]}
+災害関連キーワード例：
+- 気象災害：台風、豪雨、大雨、洪水、雷雨、雷、暴風、竜巻、雹、雪害、吹雪
+- 地震・津波：地震、津波、震度、マグニチュード、余震
+- その他災害：土砂崩れ、山崩れ、火災、火事、停電、断水、避難、警報、注意報
+- 緊急・危険：緊急事態、危険、警戒、被害、救助、災害対策
 
-true/falseで回答してください。
+参考情報：
+- 現在の災害タイプ: {disaster_type}
+- 対象地域: {location.get('admin', '日本全国')}
+
+分析対象内容:
+{content[:1500]}
+
+判定基準：
+1. 上記の災害関連キーワードが含まれている
+2. 気象警報・注意報に関する情報
+3. 防災・避難に関する情報
+4. インフラ被害や社会への影響
+5. 緊急性の高い安全情報
+
+以下の形式で回答してください：
+{{
+    "is_relevant": true/false,
+    "confidence": 0.0-1.0,
+    "keywords_found": ["見つかったキーワード"],
+    "reasoning": "判定理由"
+}}
 """
-            response = await vertex_ai_client.llm_gemini_flash.ainvoke(prompt)
-            return "true" in response.lower()
+            logger.info(f"DEBUG: Checking relevance for disaster_type='{disaster_type}', location='{location.get('admin', '')}'")
+            logger.info(f"DEBUG: Content preview: {content[:200]}...")
+            
+            # Use the global client to ensure proper Vertex AI usage
+            if hasattr(vertex_ai_client, 'llm_gemini_flash') and vertex_ai_client.llm_gemini_flash:
+                response = await vertex_ai_client.llm_gemini_flash.ainvoke(prompt)
+                logger.info(f"DEBUG: AI relevance response: {response}")
+                
+                # Try to parse JSON response
+                try:
+                    import json
+                    response_text = response.strip()
+                    if response_text.startswith("```json"):
+                        response_text = response_text[7:]
+                    if response_text.endswith("```"):
+                        response_text = response_text[:-3]
+                    
+                    parsed_response = json.loads(response_text)
+                    is_relevant = parsed_response.get("is_relevant", False)
+                    confidence = parsed_response.get("confidence", 0.0)
+                    keywords_found = parsed_response.get("keywords_found", [])
+                    reasoning = parsed_response.get("reasoning", "")
+                    
+                    logger.info(f"DEBUG: Parsed relevance result: relevant={is_relevant}, confidence={confidence}, keywords={keywords_found}")
+                    logger.info(f"DEBUG: Reasoning: {reasoning}")
+                    
+                    return is_relevant and confidence >= 0.3
+                    
+                except json.JSONDecodeError:
+                    # Fallback to keyword-based analysis when JSON parsing fails
+                    logger.warning(f"Failed to parse JSON response, using keyword-based fallback: {response}")
+                    
+                    # Check if this is a mock response
+                    if "モック応答" in response or "mock" in response.lower():
+                        logger.warning("Detected mock response, using keyword-based analysis")
+                        disaster_keywords = ['災害', '地震', '津波', '台風', '洪水', '土砂', '避難', '警報', '注意報', 
+                                           '大雨', '暴雨', '線状降水帯', '氾濫', '浸水', '落雷', '雷', '雨', '風', 
+                                           '被害', '倒壊', '停電', '断水', '緊急', '危険', '警戒', 'クマ', '熊', 
+                                           '動物', '襲撃', '襲われ', '大けが', '重傷', '安全対策', '品薄']
+                        
+                        found_keywords = [kw for kw in disaster_keywords if kw in content]
+                        has_keywords = len(found_keywords) > 0
+                        
+                        logger.info(f"DEBUG: Mock response fallback - keyword check: {has_keywords}, found: {found_keywords}")
+                        return has_keywords
+                    
+                    # Try simple text parsing for real responses
+                    response_lower = response.lower()
+                    is_relevant = ("true" in response_lower and "is_relevant" in response_lower) or \
+                                ("relevant" in response_lower and "true" in response_lower)
+                    
+                    # Additional keyword safety net
+                    disaster_keywords = ['災害', '地震', '津波', '台風', '洪水', '土砂', '避難', '警報', '注意報', 
+                                       '大雨', '暴雨', '線状降水帯', '氾濫', '浸水', '落雷', '雷', '雨', '風', 
+                                       '被害', '倒壊', '停電', '断水', '緊急', '危険', '警戒', 'クマ', '熊', 
+                                       '動物', '襲撃', '襲われ', '大けが', '重傷', '安全対策', '品薄']
+                    
+                    has_disaster_keyword = any(keyword in content for keyword in disaster_keywords)
+                    
+                    if has_disaster_keyword and not is_relevant:
+                        logger.info(f"DEBUG: Overriding AI decision - disaster keywords found: {[kw for kw in disaster_keywords if kw in content]}")
+                        return True
+                    
+                    return is_relevant
+            else:
+                # Fallback if client not properly initialized
+                logger.warning("Vertex AI client not properly initialized, using keyword-based fallback")
+                disaster_keywords = ['災害', '地震', '津波', '台風', '洪水', '土砂', '避難', '警報', '注意報', 
+                                   '大雨', '暴雨', '線状降水帯', '氾濫', '浸水', '落雷', '雷', '雨', '風', 
+                                   '被害', '倒壊', '停電', '断水', '緊急', '危険', '警戒']
+                
+                found_keywords = [kw for kw in disaster_keywords if kw in content]
+                has_keywords = len(found_keywords) > 0
+                
+                logger.info(f"DEBUG: Keyword-based relevance check: {has_keywords}, found: {found_keywords}")
+                return has_keywords
             
         except Exception as e:
             logger.error(f"Relevance check failed: {e}")
+            import traceback
+            logger.error(f"Relevance check traceback: {traceback.format_exc()}")
+            # Default to True to avoid losing potentially relevant content
             return True
     
     async def _process_and_store_info(self, collected_info: List[Dict[str, Any]], event_id: str) -> List[Dict[str, Any]]:
@@ -263,8 +380,20 @@ true/falseで回答してください。
 }}
 """
             
-            response = await vertex_ai_client.llm_gemini_flash.ainvoke(prompt)
-            enhanced_data = vertex_ai_client._parse_json_response(response)
+            # Use the global client to ensure proper Vertex AI usage
+            if hasattr(vertex_ai_client, 'llm_gemini_flash') and vertex_ai_client.llm_gemini_flash:
+                response = await vertex_ai_client.llm_gemini_flash.ainvoke(prompt)
+                enhanced_data = vertex_ai_client._parse_json_response(response)
+            else:
+                # Fallback if client not properly initialized
+                logger.warning("Vertex AI client not properly initialized, using basic enhancement")
+                enhanced_data = {
+                    "key_facts": [item.get('title', 'Unknown')],
+                    "entities": [],
+                    "urgency_level": "medium",
+                    "reliability_score": 0.5,
+                    "summary": item.get('title', 'No summary available')
+                }
             
             enhanced_item = item.copy()
             enhanced_item.update(enhanced_data)

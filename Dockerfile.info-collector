@@ -1,0 +1,30 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy and install requirements first for better caching
+COPY agents/info_collector/requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY agents/info_collector/ ./agents/info_collector/
+COPY agents/common/ ./agents/common/
+COPY shared/ ./shared/
+
+# Set environment variables
+ENV PYTHONPATH=/app
+ENV USE_MOCK_LLM=false
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8080
+
+WORKDIR /app/agents/info_collector
+
+# Debug startup and run with python main.py
+CMD ["sh", "-c", "echo 'Container starting...'; echo 'Working directory:'; pwd; echo 'Files:'; ls -la; echo 'Python path:'; python -c 'import sys; print(sys.path)'; echo 'Starting application...'; python main.py"]
