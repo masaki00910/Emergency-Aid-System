@@ -34,6 +34,15 @@ class DisasterResponseOrchestrator(BaseAgent):
             "pr": os.getenv("PR_URL", "http://pr:8080"),
             "support": os.getenv("SUPPORT_URL", "http://support:8080")
         }
+    
+    async def process(self, task: AgentTask) -> AgentResult:
+        return AgentResult(
+            task_id=task.task_id,
+            agent=self.agent_name,
+            status=TaskStatus.DONE,
+            result={"message": "Orchestrator does not process individual tasks"},
+            created_at=datetime.utcnow()
+        )
         
     async def process_disaster_event(self, event: DisasterEvent) -> Dict[str, Any]:
         orchestration_id = str(uuid.uuid4())
@@ -49,6 +58,9 @@ class DisasterResponseOrchestrator(BaseAgent):
                 "event": event.dict(),
                 "started_at": datetime.utcnow().isoformat()
             })
+            
+            # Create incidents document for other agents to update
+            await self._create_incident_document(event)
             
             tasks = await self._create_agent_tasks(event)
             
@@ -242,6 +254,22 @@ class DisasterResponseOrchestrator(BaseAgent):
         
         raise TimeoutError(f"Task {task_id} did not complete within {timeout} seconds")
     
+    async def _create_incident_document(self, event: DisasterEvent):
+        """Create initial incident document for other agents to update"""
+        try:
+            incident_ref = self.gcp.firestore.collection('incidents').document(event.event_id)
+            incident_data = event.dict()
+            incident_data.update({
+                "orchestration_started_at": datetime.utcnow().isoformat(),
+                "collected_info": [],
+                "analysis_results": [],
+                "bulletins": []
+            })
+            incident_ref.set(incident_data)
+            logger.info(f"Created incident document for event {event.event_id}")
+        except Exception as e:
+            logger.error(f"Failed to create incident document: {e}")
+
     async def _update_orchestration_state(self, orchestration_id: str, state: OrchestrationState, data: Dict[str, Any] = None):
         doc_ref = self.gcp.firestore.collection('orchestrations').document(orchestration_id)
         update_data = {

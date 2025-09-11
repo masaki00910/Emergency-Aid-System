@@ -2,19 +2,17 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY agents/detection/requirements.txt .
+COPY agents/orchestrator/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY agents/detection/ ./agents/detection/
+COPY agents/orchestrator/ ./agents/orchestrator/
 COPY agents/common/ ./agents/common/
 COPY shared/ ./shared/
 
 ENV PYTHONPATH=/app
-ENV USE_MOCK_LLM=false
-ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8080
 
-WORKDIR /app/agents/detection
+WORKDIR /app/agents/orchestrator
 
 CMD ["python", "main.py"]

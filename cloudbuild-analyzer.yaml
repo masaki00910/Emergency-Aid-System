@@ -1,9 +1,7 @@
 steps:
 - name: 'gcr.io/cloud-builders/docker'
-  args: [
-    'build',
-    '-t', 'gcr.io/sharelabai-hackathon2/analyzer-agent:latest',
-    '-f', 'agents/analyzer/Dockerfile',
-    '.'
-  ]
-images: ['gcr.io/sharelabai-hackathon2/analyzer-agent:latest']
+  args: ['build', '-f', 'Dockerfile.analyzer', '-t', 'gcr.io/$PROJECT_ID/analyzer-agent:latest', '.']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/analyzer-agent:latest']
+images:
+- 'gcr.io/$PROJECT_ID/analyzer-agent:latest'

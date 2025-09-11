@@ -12,8 +12,15 @@ from orchestrator_agent import DisasterResponseOrchestrator
 from shared.models.disaster import DisasterEvent
 
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
+logger.info("Orchestrator Agent starting with enhanced logging")
 
 app = FastAPI(title="Disaster Response Orchestrator")
 orchestrator = DisasterResponseOrchestrator()

@@ -1,5 +1,10 @@
 import os
-from google.cloud import pubsub_v1, firestore, storage, secretmanager
+from google.cloud import pubsub_v1, firestore, storage
+try:
+    from google.cloud import secretmanager
+except ImportError:
+    # Secret Manager is optional for basic functionality
+    secretmanager = None
 from google.cloud import aiplatform
 import logging
 
@@ -41,7 +46,9 @@ class GCPClientManager:
         return self._storage
     
     @property
-    def secret_manager(self) -> secretmanager.SecretManagerServiceClient:
+    def secret_manager(self):
+        if secretmanager is None:
+            raise ImportError("google-cloud-secret-manager is not installed")
         if self._secret_manager is None:
             self._secret_manager = secretmanager.SecretManagerServiceClient()
         return self._secret_manager

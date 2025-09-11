@@ -111,11 +111,12 @@ module "detection_agent" {
   service_name         = "detection-agent"
   image_url            = "gcr.io/${var.project_id}/detection-agent:latest"
   service_account_email = module.iam.service_account_emails["detection-agent"]
-  is_job               = true
+  is_job               = false
   
   environment_variables = {
     GOOGLE_CLOUD_PROJECT = var.project_id
     GOOGLE_CLOUD_REGION  = var.region
+    USE_MOCK_LLM = "false"
   }
 }
 
@@ -131,6 +132,7 @@ module "orchestrator_agent" {
   environment_variables = {
     GOOGLE_CLOUD_PROJECT = var.project_id
     GOOGLE_CLOUD_REGION  = var.region
+    USE_MOCK_LLM = "false"
   }
 }
 
@@ -146,6 +148,7 @@ module "info_collector_agent" {
   environment_variables = {
     GOOGLE_CLOUD_PROJECT = var.project_id
     GOOGLE_CLOUD_REGION  = var.region
+    USE_MOCK_LLM = "false"
   }
 }
 
@@ -161,6 +164,7 @@ module "analyzer_agent" {
   environment_variables = {
     GOOGLE_CLOUD_PROJECT = var.project_id
     GOOGLE_CLOUD_REGION  = var.region
+    USE_MOCK_LLM = "false"
   }
 }
 
@@ -176,6 +180,7 @@ module "pr_agent" {
   environment_variables = {
     GOOGLE_CLOUD_PROJECT = var.project_id
     GOOGLE_CLOUD_REGION  = var.region
+    USE_MOCK_LLM = "false"
   }
 }
 
@@ -188,7 +193,7 @@ resource "google_cloud_scheduler_job" "disaster_detection_poll" {
   project     = var.project_id
 
   pubsub_target {
-    topic_name = module.pubsub.topic_names[0] # disaster-poll
+    topic_name = "projects/${var.project_id}/topics/disaster-poll"
     data       = base64encode(jsonencode({
       trigger = "scheduled",
       timestamp = timestamp()

@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import logging
+from google.cloud import firestore
 
 from agents.common.base_agent import BaseAgent
 from shared.models.disaster import AgentTask, AgentResult, TaskStatus, DisasterType
@@ -37,15 +38,7 @@ class PRAgent(BaseAgent):
                     disaster_type, location, severity, analysis_data, collected_info
                 )
             
-            if "mobile" in output_formats:
-                pr_content["mobile"] = await self._generate_mobile_content(
-                    disaster_type, location, severity, analysis_data
-                )
-            
-            if "emergency" in output_formats:
-                pr_content["emergency"] = await self._generate_emergency_alerts(
-                    disaster_type, location, severity, analysis_data
-                )
+            # Mobile and emergency channels removed as requested
             
             await self._publish_to_channels(pr_content, task.event_id)
             
@@ -97,11 +90,18 @@ class PRAgent(BaseAgent):
             return []
     
     async def _generate_web_content(self, disaster_type: str, location: Dict[str, Any], severity: float, analysis_data: List[Dict[str, Any]], collected_info: List[Dict[str, Any]]) -> Dict[str, Any]:
+        logger.info(f"DEBUG: PR Agent starting web content generation - disaster_type={disaster_type}, location={location}, severity={severity}")
+        logger.info(f"DEBUG: Analysis data count: {len(analysis_data)}, Collected info count: {len(collected_info)}")
+        
         if vertex_ai_client.is_local_mode:
+            logger.info("DEBUG: Using local mode for PR content generation")
             return await vertex_ai_client.llm_gemini_pro.generate_web_content(disaster_type, location, severity)
         
         analysis_summary = self._extract_analysis_summary(analysis_data)
         latest_info = self._extract_latest_info(collected_info)
+        
+        logger.info(f"DEBUG: Analysis summary: {analysis_summary}")
+        logger.info(f"DEBUG: Latest info: {latest_info}")
         
         prompt = f"""
 災害情報Webサイト用のコンテンツを生成してください。
@@ -152,90 +152,32 @@ class PRAgent(BaseAgent):
 """
         
         try:
-            response = await vertex_ai_client.llm_gemini_pro.ainvoke(prompt)
-            return vertex_ai_client._parse_json_response(response)
+            logger.info("DEBUG: Attempting to get Vertex AI client for PR generation")
+            
+            # Force initialization and error if not available
+            llm_client = vertex_ai_client.llm_gemini_pro
+            logger.info(f"DEBUG: Got LLM client: {type(llm_client)}")
+            
+            logger.info("DEBUG: Calling LLM ainvoke method")
+            response = await llm_client.ainvoke(prompt)
+            logger.info(f"DEBUG: Raw LLM response: {response}")
+            
+            parsed_response = vertex_ai_client._parse_json_response(response)
+            logger.info(f"DEBUG: Parsed JSON response: {parsed_response}")
+            
+            return parsed_response
+            
         except Exception as e:
-            logger.error(f"Web content generation failed: {e}")
-            return {"error": str(e)}
+            error_msg = f"PR web content generation failed: {e}"
+            logger.error(f"CRITICAL ERROR: {error_msg}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            # Re-raise the error instead of providing fallback
+            raise RuntimeError(error_msg) from e
     
-    async def _generate_mobile_content(self, disaster_type: str, location: Dict[str, Any], severity: float, analysis_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        if vertex_ai_client.is_local_mode:
-            return await vertex_ai_client.llm_gemini_pro.generate_mobile_content(disaster_type, location)
-        
-        analysis_summary = self._extract_analysis_summary(analysis_data)
-        
-        prompt = f"""
-モバイル向け災害情報（簡潔版）を生成してください。
-
-災害情報:
-- 種類: {disaster_type}
-- 場所: {location.get('admin', '不明')}
-- 深刻度: {severity}
-
-分析結果:
-{analysis_summary}
-
-以下の形式でJSONで回答:
-{{
-    "alert_title": "アラートタイトル（30文字以内）",
-    "alert_body": "アラート本文（100文字以内）",
-    "action_required": "必要な行動（50文字以内）",
-    "severity_color": "red|orange|yellow|blue",
-    "push_notification": {{
-        "title": "プッシュ通知タイトル",
-        "body": "プッシュ通知本文"
-    }}
-}}
-"""
-        
-        try:
-            response = await vertex_ai_client.llm_gemini_flash.ainvoke(prompt)
-            return vertex_ai_client._parse_json_response(response)
-        except Exception as e:
-            logger.error(f"Mobile content generation failed: {e}")
-            return {"error": str(e)}
+    # Mobile content generation removed as requested
     
-    async def _generate_emergency_alerts(self, disaster_type: str, location: Dict[str, Any], severity: float, analysis_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        if severity < 0.7:
-            return {"message": "Emergency alert not required for this severity level"}
-        
-        analysis_summary = self._extract_analysis_summary(analysis_data)
-        
-        prompt = f"""
-緊急警報用のコンテンツを生成してください。
-
-災害情報:
-- 種類: {disaster_type}
-- 場所: {location.get('admin', '不明')}
-- 深刻度: {severity}
-
-分析結果:
-{analysis_summary}
-
-以下の形式でJSONで回答:
-{{
-    "emergency_alert": {{
-        "level": "warning|watch|advisory",
-        "message": "緊急メッセージ（明確・簡潔）",
-        "action": "直ちに取るべき行動",
-        "areas": ["対象地域"],
-        "valid_until": "有効期限"
-    }},
-    "evacuation_order": {{
-        "required": true/false,
-        "areas": ["避難対象地域"],
-        "shelters": ["避難所"],
-        "routes": ["避難ルート"]
-    }}
-}}
-"""
-        
-        try:
-            response = await vertex_ai_client.llm_gemini_pro.ainvoke(prompt)
-            return vertex_ai_client._parse_json_response(response)
-        except Exception as e:
-            logger.error(f"Emergency alert generation failed: {e}")
-            return {"error": str(e)}
+    # Emergency alert generation removed as requested
     
     def _extract_analysis_summary(self, analysis_data: List[Dict[str, Any]]) -> str:
         if not analysis_data:
@@ -301,16 +243,14 @@ class PRAgent(BaseAgent):
             if isinstance(content, dict):
                 if "headline" in content:
                     summary[format_type] = {"headline": content["headline"]}
-                elif "alert_title" in content:
-                    summary[format_type] = {"alert": content["alert_title"]}
-                elif "emergency_alert" in content:
-                    summary[format_type] = {"emergency": content["emergency_alert"].get("message", "")}
+                # Mobile and emergency alert summary removed
                 else:
                     summary[format_type] = {"status": "generated"}
         return summary
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
     port = int(os.getenv("PORT", 8080))
     uvicorn.run(app, host="0.0.0.0", port=port)

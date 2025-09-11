@@ -3,7 +3,8 @@ steps:
   args: [
     'build',
     '-t', 'gcr.io/sharelabai-hackathon2/detection-agent:latest',
+    '-t', 'gcr.io/sharelabai-hackathon2/detection-job:latest',
     '-f', 'agents/detection/Dockerfile',
     '.'
   ]
-images: ['gcr.io/sharelabai-hackathon2/detection-agent:latest']
+images: ['gcr.io/sharelabai-hackathon2/detection-agent:latest', 'gcr.io/sharelabai-hackathon2/detection-job:latest']

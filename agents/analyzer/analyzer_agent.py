@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 import logging
+from google.cloud import firestore
 
 from agents.common.base_agent import BaseAgent
 from shared.models.disaster import AgentTask, AgentResult, TaskStatus, DisasterType
@@ -133,8 +134,40 @@ class DisasterAnalyzerAgent(BaseAgent):
 """
         
         try:
-            response = await vertex_ai_client.llm_gemini_pro.ainvoke(prompt)
-            return vertex_ai_client._parse_json_response(response)
+            # Use the global client to ensure proper Vertex AI usage
+            if hasattr(vertex_ai_client, 'llm_gemini_pro') and vertex_ai_client.llm_gemini_pro:
+                response = await vertex_ai_client.llm_gemini_pro.ainvoke(prompt)
+                return vertex_ai_client._parse_json_response(response)
+            else:
+                # Fallback if client not properly initialized
+                logger.warning("Vertex AI client not properly initialized, using fallback impact assessment")
+                return {
+                    "impact_assessment": {
+                        "human_impact": {
+                            "estimated_affected_population": 1000,
+                            "vulnerability_areas": ["Unknown areas"],
+                            "evacuation_recommendations": ["Follow local authorities guidance"]
+                        },
+                        "infrastructure_impact": {
+                            "transportation": "Impact unknown",
+                            "utilities": "Impact unknown",
+                            "facilities": "Impact unknown"
+                        },
+                        "economic_impact": {
+                            "estimated_damage": "Unknown",
+                            "affected_industries": ["Unknown"],
+                            "recovery_timeline": "Unknown"
+                        }
+                    },
+                    "response_recommendations": {
+                        "immediate_actions": ["Monitor situation"],
+                        "resource_allocation": ["Standard emergency resources"],
+                        "coordination_points": ["Local emergency services"]
+                    },
+                    "information_gaps": ["Detailed impact assessment needed"],
+                    "confidence_level": 0.3,
+                    "sources_used": ["Fallback analysis"]
+                }
         except Exception as e:
             logger.error(f"Impact assessment failed: {e}")
             return {"error": str(e)}
@@ -165,8 +198,21 @@ class DisasterAnalyzerAgent(BaseAgent):
 """
         
         try:
-            response = await vertex_ai_client.llm_gemini_flash.ainvoke(prompt)
-            return vertex_ai_client._parse_json_response(response)
+            # Use the global client to ensure proper Vertex AI usage
+            if hasattr(vertex_ai_client, 'llm_gemini_flash') and vertex_ai_client.llm_gemini_flash:
+                response = await vertex_ai_client.llm_gemini_flash.ainvoke(prompt)
+                return vertex_ai_client._parse_json_response(response)
+            else:
+                # Fallback if client not properly initialized
+                logger.warning("Vertex AI client not properly initialized, using fallback analysis")
+                return {
+                    "situation_overview": f"{disaster_type} disaster in {location.get('admin', 'Unknown location')}",
+                    "key_developments": ["Situation being monitored"],
+                    "affected_areas": [location.get('admin', 'Unknown location')],
+                    "current_response": ["Emergency services responding"],
+                    "recommendations": ["Follow official guidance"],
+                    "next_steps": ["Continue monitoring"]
+                }
         except Exception as e:
             logger.error(f"General analysis failed: {e}")
             return {"error": str(e)}
