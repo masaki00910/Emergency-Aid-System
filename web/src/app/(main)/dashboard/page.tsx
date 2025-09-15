@@ -1,6 +1,5 @@
 'use client'
 
-import Sidebar from '@/components/layout/Sidebar'
 import IncidentMap from '@/components/map/IncidentMap'
 import AlertSummary from '@/components/dashboard/AlertSummary'
 import FeedList from '@/components/feeds/FeedList'
@@ -42,10 +41,9 @@ export default function DashboardPage() {
 
     fetchData()
   }, [])
+
   return (
-    <div className="md:flex">
-      <Sidebar />
-      <section className="flex-1 p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold">災害情報ダッシュボード</h1>
           <div className="text-sm text-zinc-600">
@@ -121,7 +119,6 @@ export default function DashboardPage() {
             </ul>
           )}
         </div>
-      </section>
     </div>
   )
 }

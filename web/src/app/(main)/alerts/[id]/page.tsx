@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
-import Sidebar from '@/components/layout/Sidebar'
 import { API } from '@/lib/api'
 import GoogleMap from '@/components/GoogleMap'
 import type { Alert } from '@/types/alert'
@@ -113,22 +112,16 @@ export default function AlertDetailPage() {
 
   if (loading) {
     return (
-      <div className="md:flex">
-        <Sidebar />
-        <div className="flex-1 p-6">
-          <div className="text-center">読み込み中...</div>
-        </div>
+      <div className="p-6">
+        <div className="text-center">読み込み中...</div>
       </div>
     )
   }
 
   if (!alert) {
     return (
-      <div className="md:flex">
-        <Sidebar />
-        <div className="flex-1 p-6">
-          <div className="text-center">アラートが見つかりません</div>
-        </div>
+      <div className="p-6">
+        <div className="text-center">アラートが見つかりません</div>
       </div>
     )
   }
@@ -156,10 +149,7 @@ export default function AlertDetailPage() {
   }
 
   return (
-    <div className="md:flex">
-      <Sidebar />
-      
-      <section className="flex-1 p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
         {/* Header */}
         <header className="mb-6">
           <h1 className="text-2xl font-bold mb-2">詳細</h1>
@@ -338,7 +328,6 @@ export default function AlertDetailPage() {
             </div>
           </div>
         </div>
-      </section>
     </div>
   )
 }

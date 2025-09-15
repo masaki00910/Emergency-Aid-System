@@ -7,12 +7,17 @@ const items = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/alerts',    label: 'Alerts'    },
   { href: '/feeds',     label: 'Feeds'     },
+  { href: '/faq',       label: 'FAQ'       },
 ]
 
-export default function Sidebar() {
+interface SidebarProps {
+  className?: string
+}
+
+export default function Sidebar({ className = '' }: SidebarProps) {
   const pathname = usePathname()
   return (
-    <aside className="hidden md:block sticky top-0 h-dvh w-56 shrink-0 bg-zinc-900 text-zinc-50">
+    <aside className={`hidden md:block sticky top-0 h-dvh w-56 shrink-0 bg-zinc-900 text-zinc-50 ${className}`}>
       <div className="p-4 border-b border-zinc-800">
         <div className="text-xl font-semibold tracking-tight">守り雲</div>
       </div>
