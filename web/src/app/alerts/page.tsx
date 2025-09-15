@@ -1,9 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Sidebar from '@/components/layout/Sidebar'
-import { mockAlerts, mockIncidents } from '@/mocks/data'
+import { API } from '@/lib/api'
+import type { Alert } from '@/types/alert'
+import type { Incident } from '@/types/incident'
 
 type AlertLevel = 'Active' | 'non-Active' | 'all'
 type AlertTag = 'flood' | 'earthquake' | 'landslide' | 'typhoon' | 'tsunami' | 'other' | 'all'
@@ -13,14 +15,37 @@ export default function AlertsPage() {
   const [selectedTag, setSelectedTag] = useState<AlertTag>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
+  const [alerts, setAlerts] = useState<Alert[]>([])
+  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const [alertsData, incidentsData] = await Promise.all([
+          API.getAlerts(),
+          API.getIncidents()
+        ])
+        setAlerts(alertsData)
+        setIncidents(incidentsData)
+      } catch (error) {
+        console.error('Failed to fetch alerts data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [])
 
   // Combine alerts and incidents for display
   const allAlerts = [
-    ...mockAlerts.map(alert => ({ ...alert, severity: alert.level === 'warning' ? 'high' : alert.level === 'watch' ? 'medium' : 'low' })),
-    ...mockIncidents.map(incident => ({ 
-      ...incident, 
+    ...alerts.map(alert => ({ ...alert, severity: alert.level === 'warning' ? 'high' : alert.level === 'watch' ? 'medium' : 'low' })),
+    ...incidents.map(incident => ({
+      ...incident,
       level: incident.severity === 'high' ? 'warning' : incident.severity === 'medium' ? 'watch' : 'info',
-      startedAt: incident.reportedAt 
+      startedAt: incident.reportedAt
     }))
   ]
 
@@ -141,11 +166,15 @@ export default function AlertsPage() {
         {/* サマリーカード */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div className="bg-white rounded-xl border p-6 text-center">
-            <div className="text-5xl font-bold mb-2">{activeCount}</div>
+            <div className="text-5xl font-bold mb-2">
+              {loading ? '...' : activeCount}
+            </div>
             <div className="text-lg">Active Alerts</div>
           </div>
           <div className="bg-white rounded-xl border p-6 text-center">
-            <div className="text-5xl font-bold mb-2">{todayCount}</div>
+            <div className="text-5xl font-bold mb-2">
+              {loading ? '...' : todayCount}
+            </div>
             <div className="text-lg">Events Today</div>
           </div>
         </div>
@@ -198,7 +227,12 @@ export default function AlertsPage() {
 
         {/* アラート一覧 */}
         <div className="space-y-4">
-          {filteredAlerts.map((alert, index) => (
+          {loading ? (
+            <div className="text-center py-8 text-zinc-600">読み込み中...</div>
+          ) : filteredAlerts.length === 0 ? (
+            <div className="text-center py-8 text-zinc-600">該当するアラートはありません</div>
+          ) : (
+            filteredAlerts.map((alert, index) => (
             <Link key={alert.id} href={`/alerts/${alert.id}`}>
               <div
                 className={`rounded-xl border-2 p-4 cursor-pointer hover:shadow-lg transition-shadow ${getSeverityColor(alert.severity)}`}
@@ -250,7 +284,8 @@ export default function AlertsPage() {
                 </div>
               </div>
             </Link>
-          ))}
+            ))
+          )}
         </div>
 
         {/* FAQ */}

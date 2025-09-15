@@ -3,8 +3,11 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import Sidebar from '@/components/layout/Sidebar'
-import { mockAlerts, mockIncidents, mockFeeds } from '@/mocks/data'
+import { API } from '@/lib/api'
 import GoogleMap from '@/components/GoogleMap'
+import type { Alert } from '@/types/alert'
+import type { Incident } from '@/types/incident'
+import type { FeedItem } from '@/types/feed'
 
 interface TimelineEvent {
   id: string
@@ -31,61 +34,93 @@ export default function AlertDetailPage() {
   }
   
   const [alert, setAlert] = useState<ExtendedAlert | null>(null)
-  const [relatedFeeds, setRelatedFeeds] = useState<typeof mockFeeds>([])
+  const [relatedFeeds, setRelatedFeeds] = useState<FeedItem[]>([])
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Find alert by ID (search both alerts and incidents)
-    let foundAlert: ExtendedAlert | undefined = mockAlerts.find(a => a.id === alertId) as ExtendedAlert | undefined
-    const foundIncident = mockIncidents.find(i => i.id === alertId)
+    const fetchAlertData = async () => {
+      try {
+        setLoading(true)
+
+        // Try to fetch as alert first, then as incident
+        let foundAlert: ExtendedAlert | undefined
+        let foundIncident: Incident | undefined
+
+        const alertData = await API.getAlert(alertId)
+        if (alertData) {
+          foundAlert = alertData as ExtendedAlert
+        } else {
+          const incidentData = await API.getIncident(alertId)
+          foundIncident = incidentData || undefined
+        }
     
-    if (!foundAlert && foundIncident) {
-      // Convert incident to alert format for display
-      foundAlert = {
-        id: foundIncident.id,
-        title: foundIncident.title,
-        level: foundIncident.severity === 'high' ? 'warning' : 
-               foundIncident.severity === 'medium' ? 'watch' : 'info',
-        hazard: foundIncident.hazard || 'other',
-        area: foundIncident.area || '',
-        startedAt: foundIncident.reportedAt || Date.now(),
-        lat: foundIncident.lat,
-        lng: foundIncident.lng,
-        isActive: foundIncident.isActive
-      } as ExtendedAlert
+        if (!foundAlert && foundIncident) {
+          // Convert incident to alert format for display
+          foundAlert = {
+            id: foundIncident.id,
+            title: foundIncident.title,
+            level: foundIncident.severity === 'high' ? 'warning' :
+                   foundIncident.severity === 'medium' ? 'watch' : 'info',
+            hazard: foundIncident.hazard || 'other',
+            area: foundIncident.area || '',
+            startedAt: foundIncident.reportedAt || Date.now(),
+            lat: foundIncident.lat,
+            lng: foundIncident.lng,
+            isActive: foundIncident.isActive
+          } as ExtendedAlert
+        }
+
+        if (foundAlert) {
+          setAlert(foundAlert)
+
+          // Find related feeds
+          const related = await API.getFeedsByIncident(alertId)
+          setRelatedFeeds(related)
+
+          // Generate timeline from feeds and alert info
+          const timelineEvents: TimelineEvent[] = [
+            {
+              id: 'alert-start',
+              time: new Date(foundAlert.startedAt).toLocaleString('ja-JP'),
+              title: `${foundAlert.title}の発生`,
+              source: '気象庁API',
+              isAlert: true
+            },
+            ...related.map(feed => ({
+              id: feed.id,
+              time: new Date(feed.publishedAt).toLocaleString('ja-JP'),
+              title: feed.title,
+              source: feed.source === 'jma' ? '気象庁' :
+                     feed.source === 'nhk' ? 'NHK' :
+                     feed.source === 'tenki' ? 'tenki.jp' :
+                     feed.source === 'x' ? 'X(Twitter)' : 'ニュース',
+              isAlert: false
+            }))
+          ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+
+          setTimeline(timelineEvents)
+        }
+      } catch (error) {
+        console.error('Failed to fetch alert data:', error)
+      } finally {
+        setLoading(false)
+      }
     }
-    
-    if (foundAlert) {
-      setAlert(foundAlert)
-      
-      // Find related feeds
-      const related = mockFeeds.filter(feed => feed.incidentId === alertId)
-      setRelatedFeeds(related)
-      
-      // Generate timeline from feeds and alert info
-      const timelineEvents: TimelineEvent[] = [
-        {
-          id: 'alert-start',
-          time: new Date(foundAlert.startedAt).toLocaleString('ja-JP'),
-          title: `${foundAlert.title}の発生`,
-          source: '気象庁API',
-          isAlert: true
-        },
-        ...related.map(feed => ({
-          id: feed.id,
-          time: new Date(feed.publishedAt).toLocaleString('ja-JP'),
-          title: feed.title,
-          source: feed.source === 'jma' ? '気象庁' : 
-                 feed.source === 'nhk' ? 'NHK' : 
-                 feed.source === 'tenki' ? 'tenki.jp' : 
-                 feed.source === 'x' ? 'X(Twitter)' : 'ニュース',
-          isAlert: false
-        }))
-      ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-      
-      setTimeline(timelineEvents)
-    }
+
+    fetchAlertData()
   }, [alertId])
+
+  if (loading) {
+    return (
+      <div className="md:flex">
+        <Sidebar />
+        <div className="flex-1 p-6">
+          <div className="text-center">読み込み中...</div>
+        </div>
+      </div>
+    )
+  }
 
   if (!alert) {
     return (
