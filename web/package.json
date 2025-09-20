@@ -1,34 +1,25 @@
 {
   "name": "web",
   "version": "1.0.0",
-  "description": "This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).",
-  "main": "tailwind.config.js",
+  "description": "Disaster Response System Frontend",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "@googlemaps/js-api-loader": "^1.16.10",
-    "firebase": "^12.2.1",
-    "lightningcss": "^1.30.1",
-    "next": "^15.5.2",
+    "autoprefixer": "^10.4.21",
+    "next": "14.2.4",
+    "postcss": "^8.5.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwindcss": "^3.4.17"
+    "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
-    "@types/google.maps": "^3.58.1",
-    "@types/node": "^24.3.1",
-    "@types/react": "^19.1.12",
-    "autoprefixer": "^10.4.21",
-    "eslint": "^9.35.0",
-    "eslint-config-next": "^15.5.2",
-    "postcss": "^8.5.6",
-    "typescript": "^5.9.2"
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.4.0"
   }
 }
