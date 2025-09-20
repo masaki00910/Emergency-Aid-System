@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { API } from '@/lib/api'
-import type { Alert } from '@/types/alert'
-import type { Incident } from '@/types/incident'
+import type { Alert, Incident } from '@/lib/api'
 
 type AlertLevel = 'Active' | 'non-Active' | 'all'
 type AlertTag = 'flood' | 'earthquake' | 'landslide' | 'typhoon' | 'tsunami' | 'other' | 'all'
@@ -40,19 +39,29 @@ export default function AlertsPage() {
 
   // Combine alerts and incidents for display
   const allAlerts = [
-    ...alerts.map(alert => ({ ...alert, severity: alert.level === 'warning' ? 'high' : alert.level === 'watch' ? 'medium' : 'low' })),
+    ...alerts.map(alert => ({ 
+      ...alert,
+      // API Alert already has severity as string, keep it
+      // Keep the active field from the alert
+    })),
     ...incidents.map(incident => ({
-      ...incident,
-      level: incident.severity === 'high' ? 'warning' : incident.severity === 'medium' ? 'watch' : 'info',
-      startedAt: incident.reportedAt
+      id: incident.id,
+      title: incident.title,
+      area: incident.area,
+      hazard: incident.hazard,
+      severity: incident.severity,
+      startedAt: incident.reportedAt,
+      description: incident.description,
+      // Incidents don't have active field, default to false
+      active: false
     }))
   ]
 
   // フィルタリング
   const filteredAlerts = allAlerts.filter(alert => {
     const levelMatch = selectedLevel === 'all' || 
-      (selectedLevel === 'Active' && alert.severity === 'high') ||
-      (selectedLevel === 'non-Active' && alert.severity !== 'high')
+      (selectedLevel === 'Active' && alert.active === true) ||
+      (selectedLevel === 'non-Active' && alert.active === false)
     
     const tagMatch = selectedTag === 'all' || alert.hazard === selectedTag
     
@@ -63,7 +72,7 @@ export default function AlertsPage() {
     return levelMatch && tagMatch && searchMatch
   })
 
-  const activeCount = allAlerts.filter(a => a.severity === 'high').length
+  const activeCount = allAlerts.filter(a => a.active === true).length
   const todayCount = allAlerts.filter(a => {
     if (!a.startedAt) return false
     const today = new Date().toDateString()
@@ -240,9 +249,9 @@ export default function AlertsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                        alert.severity === 'high' ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'
+                        alert.active ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'
                       }`}>
-                        {alert.severity === 'high' ? 'Active' : 'non-Active'}
+                        {alert.active ? 'Active' : 'non-Active'}
                       </span>
                       <div className="flex gap-1">
                         {alert.hazard && (

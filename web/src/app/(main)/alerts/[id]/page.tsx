@@ -4,9 +4,7 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { API } from '@/lib/api'
 import GoogleMap from '@/components/GoogleMap'
-import type { Alert } from '@/types/alert'
-import type { Incident } from '@/types/incident'
-import type { FeedItem } from '@/types/feed'
+import type { Alert, Incident, FeedItem } from '@/lib/api'
 
 interface TimelineEvent {
   id: string
@@ -20,19 +18,7 @@ export default function AlertDetailPage() {
   const params = useParams()
   const alertId = params.id as string
   
-  interface ExtendedAlert {
-    id: string
-    title: string
-    level: string
-    hazard: string
-    area: string
-    startedAt: number
-    lat?: number
-    lng?: number
-    isActive?: boolean
-  }
-  
-  const [alert, setAlert] = useState<ExtendedAlert | null>(null)
+  const [alert, setAlert] = useState<Alert | null>(null)
   const [relatedFeeds, setRelatedFeeds] = useState<FeedItem[]>([])
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,62 +29,77 @@ export default function AlertDetailPage() {
         setLoading(true)
 
         // Try to fetch as alert first, then as incident
-        let foundAlert: ExtendedAlert | undefined
-        let foundIncident: Incident | undefined
+        let foundAlert: Alert | null = null
 
-        const alertData = await API.getAlert(alertId)
-        if (alertData) {
-          foundAlert = alertData as ExtendedAlert
-        } else {
-          const incidentData = await API.getIncident(alertId)
-          foundIncident = incidentData || undefined
+        try {
+          const alertData = await API.getAlert(alertId)
+          if (alertData) {
+            foundAlert = alertData
+          }
+        } catch (error) {
+          console.warn('Failed to fetch as alert, trying as incident:', error)
         }
-    
-        if (!foundAlert && foundIncident) {
-          // Convert incident to alert format for display
-          foundAlert = {
-            id: foundIncident.id,
-            title: foundIncident.title,
-            level: foundIncident.severity === 'high' ? 'warning' :
-                   foundIncident.severity === 'medium' ? 'watch' : 'info',
-            hazard: foundIncident.hazard || 'other',
-            area: foundIncident.area || '',
-            startedAt: foundIncident.reportedAt || Date.now(),
-            lat: foundIncident.lat,
-            lng: foundIncident.lng,
-            isActive: foundIncident.isActive
-          } as ExtendedAlert
+
+        if (!foundAlert) {
+          try {
+            const incidentData = await API.getIncident(alertId)
+            if (incidentData) {
+              // Convert incident to alert format for display
+              // Incidents are generally non-active unless they are high severity
+              foundAlert = {
+                id: incidentData.id,
+                title: incidentData.title,
+                area: incidentData.area || 'Unknown Area',
+                hazard: incidentData.hazard || 'other',
+                severity: incidentData.severity || 'medium',
+                startedAt: incidentData.reportedAt,
+                description: incidentData.description,
+                active: incidentData.severity === 'high' || incidentData.severity === '高'
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to fetch as incident:', error)
+          }
         }
 
         if (foundAlert) {
           setAlert(foundAlert)
 
-          // Find related feeds
-          const related = await API.getFeedsByIncident(alertId)
-          setRelatedFeeds(related)
+          // Try to find related feeds
+          try {
+            const related = await API.getFeedsByIncident(alertId)
+            setRelatedFeeds(related)
 
-          // Generate timeline from feeds and alert info
-          const timelineEvents: TimelineEvent[] = [
-            {
+            // Generate timeline from feeds and alert info
+            const timelineEvents: TimelineEvent[] = [
+              {
+                id: 'alert-start',
+                time: new Date(foundAlert.startedAt).toLocaleString('ja-JP'),
+                title: `${foundAlert.title}の発生`,
+                source: '気象庁API',
+                isAlert: true
+              },
+              ...related.map(feed => ({
+                id: feed.id,
+                time: new Date(feed.timestamp).toLocaleString('ja-JP'),
+                title: feed.title,
+                source: feed.source,
+                isAlert: false
+              }))
+            ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+
+            setTimeline(timelineEvents)
+          } catch (error) {
+            console.warn('Failed to fetch related feeds:', error)
+            // Create minimal timeline with just the alert
+            setTimeline([{
               id: 'alert-start',
               time: new Date(foundAlert.startedAt).toLocaleString('ja-JP'),
               title: `${foundAlert.title}の発生`,
               source: '気象庁API',
               isAlert: true
-            },
-            ...related.map(feed => ({
-              id: feed.id,
-              time: new Date(feed.publishedAt).toLocaleString('ja-JP'),
-              title: feed.title,
-              source: feed.source === 'jma' ? '気象庁' :
-                     feed.source === 'nhk' ? 'NHK' :
-                     feed.source === 'tenki' ? 'tenki.jp' :
-                     feed.source === 'x' ? 'X(Twitter)' : 'ニュース',
-              isAlert: false
-            }))
-          ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-
-          setTimeline(timelineEvents)
+            }])
+          }
         }
       } catch (error) {
         console.error('Failed to fetch alert data:', error)
@@ -107,7 +108,9 @@ export default function AlertDetailPage() {
       }
     }
 
-    fetchAlertData()
+    if (alertId) {
+      fetchAlertData()
+    }
   }, [alertId])
 
   if (loading) {
@@ -148,6 +151,15 @@ export default function AlertDetailPage() {
     }
   }
 
+  // Create incident for map display - matching GoogleMap's MapIncident interface
+  const mapIncident = {
+    id: alert.id,
+    lat: 35.6762, // Default Tokyo coordinates
+    lng: 139.6503,
+    title: alert.title,
+    isActive: alert.active
+  }
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
         {/* Header */}
@@ -155,12 +167,12 @@ export default function AlertDetailPage() {
           <h1 className="text-2xl font-bold mb-2">詳細</h1>
           
           {/* Alert Status Banner */}
-          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+          <div className={`border-l-4 p-4 mb-4 ${alert.active ? 'bg-red-50 border-red-500' : 'bg-gray-50 border-gray-400'}`}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="bg-red-500 text-white px-2 py-1 rounded text-sm font-semibold">
-                    Active Alert
+                  <span className={`px-2 py-1 rounded text-sm font-semibold ${alert.active ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'}`}>
+                    {alert.active ? 'Active Alert' : 'non-Active Alert'}
                   </span>
                   <span className="text-2xl">{getHazardIcon(alert.hazard)}</span>
                 </div>
@@ -184,15 +196,9 @@ export default function AlertDetailPage() {
               <h3 className="text-lg font-semibold mb-4">位置情報</h3>
               <div className="h-64 bg-gray-100 rounded-lg overflow-hidden">
                 <GoogleMap
-                  lat={alert.lat || 35.6762}
-                  lng={alert.lng || 139.6503}
-                  incidents={alert.lat && alert.lng ? [{
-                    id: alert.id,
-                    lat: alert.lat,
-                    lng: alert.lng,
-                    title: alert.title,
-                    isActive: alert.isActive !== false
-                  }] : []}
+                  lat={35.6762}
+                  lng={139.6503}
+                  incidents={[mapIncident]}
                 />
               </div>
             </div>
@@ -201,10 +207,7 @@ export default function AlertDetailPage() {
             <div className="bg-white rounded-xl border p-6">
               <h3 className="text-lg font-semibold mb-4">地域・エリア</h3>
               <div className="text-sm text-gray-600 leading-relaxed">
-                {alert.area}地区、{alert.area}北部、{alert.area}中央区、
-                {alert.area}東大阪市、{alert.area}府内各市町、{alert.area}
-                府南本市、…、{alert.area}府東中市、…、兵庫県
-                神戸市、兵庫県明石市、兵庫県尼崎市、兵庫県西宮市
+                {alert.area}
               </div>
             </div>
 
@@ -223,10 +226,7 @@ export default function AlertDetailPage() {
                   警報
                 </span>
                 <span className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800">
-                  注意報に注意し、周辺や今後の状況を確認することをお勧めします。
-                </span>
-                <span className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800">
-                  上記災害情報を参考に適切な予防措置をとり避難することを心がけてください。
+                  レベル: {alert.severity}
                 </span>
               </div>
             </div>
@@ -236,21 +236,16 @@ export default function AlertDetailPage() {
               <h3 className="text-lg font-semibold mb-4">アラート概要</h3>
               <div className="space-y-4 text-sm">
                 <p>
-                  2025年8月27日0時30分から28日06時まで
-                  {alert.area}府各各市を中心に1時間あたり50～80mmの猛烈な雨が予想されています。
-                  猛雨量は最大200mmに達する見込みで、土砂災害重点地域や中小河川での氾濫発生の危険性が
-                  高まる可能性があります。
+                  {alert.description || `${alert.area}で${alert.hazard}に関する${alert.severity}レベルのアラートが発表されています。`}
                 </p>
                 
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-semibold mb-2">備考</h4>
+                  <h4 className="font-semibold mb-2">注意事項</h4>
                   <ul className="space-y-1 text-xs">
-                    <li><span className="font-medium">a) 政府PDFのQCR →</span> 現実的にFAQみたいな回答作成をなぞそう</li>
-                    <li><span className="font-medium">b) △州PDFのマニュアル →</span> 各連絡機関とのつながり</li>
-                    <li><span className="font-medium">c) 災害とその対策</span>(運搬例、避難経路例、物資補給、ライフライン復旧、デマ対策、FAQ発行等)</li>
-                    <li><span className="font-medium">→ Alert詳細においてある？</span> (おそらくの避難場所案内・文書接続・障害復旧など)</li>
-                    <li><span className="font-medium">→ 対策のページを到達再現するのもできる</span>が、Alertに基本的にともなう？</li>
-                    <li><span className="font-medium">サポートAgent:</span> 経済・心理状況の可視化</li>
+                    <li>• 最新の情報を確認してください</li>
+                    <li>• 避難指示が出た場合は速やかに避難してください</li>
+                    <li>• 危険な場所には近づかないでください</li>
+                    <li>• 緊急時は119番または110番に連絡してください</li>
                   </ul>
                 </div>
               </div>
@@ -287,41 +282,31 @@ export default function AlertDetailPage() {
                     大雨の時の注意点は？
                   </summary>
                   <ul className="text-xs text-gray-600 space-y-1 pl-4">
-                    <li>• 浸水や土砂災害にそなえるため危険な場所は避ける</li>
+                    <li>• 浸水や土砂災害に備えるため危険な場所は避ける</li>
                     <li>• 河川や用水路には近づかない</li>
-                    <li>• 地下や半ヤマザメ（アンダーパス）使用禁止</li>
-                    <li>• クルマ要藏による水漂流危険場所の高</li>
-                    <li>雨・緊急避難でバス以外への転載をする</li>
+                    <li>• 地下やアンダーパスの利用を避ける</li>
+                    <li>• 車での移動は控える</li>
                   </ul>
                 </details>
 
                 <details className="text-sm">
                   <summary className="cursor-pointer font-medium text-blue-700 mb-2">
-                    「土砂災害警報」や「土砂災害危険」
+                    避難するタイミングは？
                   </summary>
                   <div className="text-xs text-gray-600 pl-4">
-                    常務で検討する内容は、神体の管理に関心
-                    を準備し、道路によかっての協いの幅を考える
+                    避難勧告や避難指示が発表されたタイミング、または
+                    危険を感じた時は躊躇せずに避難してください。
                   </div>
                 </details>
 
                 <details className="text-sm">
                   <summary className="cursor-pointer font-medium text-blue-700 mb-2">
-                    個人準備にある活用方法の場合。
+                    緊急時の連絡先は？
                   </summary>
                   <div className="text-xs text-gray-600 pl-4">
-                    「土砂意発報」や「上路避難指示」が発表した
-                    タイミングを会場とし、スポーツ終了後に解除される
-                    を推奨
-                  </div>
-                </details>
-
-                <details className="text-sm">
-                  <summary className="cursor-pointer font-medium text-blue-700 mb-2">
-                    停電でも開放する目標ざされますが、雷対的エヤコン
-                  </summary>
-                  <div className="text-xs text-gray-600 pl-4">
-                    台風の目線、配電に対づくつのことをする
+                    消防・救急: 119番<br />
+                    警察: 110番<br />
+                    市町村防災担当課へもご連絡ください
                   </div>
                 </details>
               </div>
