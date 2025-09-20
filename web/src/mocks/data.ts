@@ -26,8 +26,46 @@ export const mockIncidents: Incident[] = [
 ]
 
 export const mockAlerts: Alert[] = [
-  { id: 'a1', title: '地震注意報（関東）', level: 'warning', hazard: 'earthquake', area: '関東', startedAt: Date.now() - 15 * 60_000 },
-  { id: 'a2', title: '大雨警報（東京23区）', level: 'watch',   hazard: 'flood',      area: '東京23区', startedAt: Date.now() - 45 * 60_000 },
+  {
+    id: 'a1',
+    title: '地震注意報（関東）',
+    level: 'warning',
+    hazard: 'earthquake',
+    area: '関東',
+    startedAt: Date.now() - 15 * 60_000,
+    summary: '関東地域で震度5弱の地震が発生しました。余震に注意してください。',
+    description: '本日午後、関東地域において震度5弱の地震が発生しました。現在のところ大きな被害の報告はありませんが、余震の可能性があるため引き続き注意が必要です。エレベーターの使用を控え、落下物に注意してください。'
+  },
+  {
+    id: 'a2',
+    title: '大雨警報（東京23区）',
+    level: 'watch',
+    hazard: 'flood',
+    area: '東京23区',
+    startedAt: Date.now() - 45 * 60_000,
+    summary: '東京23区に大雨警報が発令されています。河川の氾濫や土砂災害に警戒してください。',
+    description: '前線の影響により、東京23区では1時間に50mmを超える激しい雨が続いています。河川の水位上昇や低地の浸水、土砂災害の危険性が高まっています。不要不急の外出は控え、安全な場所にいてください。'
+  },
+  {
+    id: 'a3',
+    title: '台風警報（九州地方）',
+    level: 'emergency',
+    hazard: 'typhoon',
+    area: '九州',
+    startedAt: Date.now() - 2 * 60 * 60_000,
+    summary: '強い台風が九州地方に接近中です。暴風・大雨に厳重警戒してください。',
+    description: '非常に強い台風第12号が九州地方に接近しています。最大風速45m/sの暴風と300mmを超える大雨が予想されます。外出は絶対に避け、窓ガラスから離れた安全な場所で待機してください。'
+  },
+  {
+    id: 'a4',
+    title: '土砂災害警戒情報（広島県）',
+    level: 'warning',
+    hazard: 'landslide',
+    area: '広島県',
+    startedAt: Date.now() - 30 * 60_000,
+    summary: '広島県内で土砂災害の危険度が非常に高くなっています。',
+    description: '大雨の影響により、広島県内の山間部で土砂災害の危険度が急激に高まっています。がけ崩れや土石流の発生する可能性があります。危険な地域からの避難を検討してください。'
+  }
 ]
 
 export const mockFeeds: FeedItem[] = [

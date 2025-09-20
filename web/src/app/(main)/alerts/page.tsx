@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Sidebar from '@/components/layout/Sidebar'
 import { API } from '@/lib/api'
 import type { Alert } from '@/types/alert'
 import type { Incident } from '@/types/incident'
@@ -113,9 +112,7 @@ export default function AlertsPage() {
   }
 
   return (
-    <div className="md:flex">
-      <Sidebar />
-      <section className="flex-1 p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
         <header>
           <h1 className="text-2xl font-bold mb-6">サマリ</h1>
           
@@ -312,7 +309,6 @@ export default function AlertsPage() {
             </details>
           </div>
         </div>
-      </section>
     </div>
   )
 }

@@ -198,7 +198,82 @@ type FeedItem = {
 
 ---
 
-## 9. 変更履歴（本版の差分）
+## 9. AI생성 FAQ
+### 9.1 용도
+- 현재 활성화된 Alert에 대한 동적 FAQ 생성
+- 재해 유형별 행동요령, 주의사항, 대피방법 등을 GenAI로 생성
+
+### 9.2 모델
+```ts
+type AIGeneratedFAQ = {
+  id: string
+  alertId: string                    // 관련 Alert ID
+  hazardType: "earthquake" | "typhoon" | "flood" | "landslide" | "tsunami" | "wildfire" | "other"
+  category: "action_guide" | "safety_tips" | "evacuation" | "preparation" | "recovery"
+  question: string
+  answer: string
+  priority: number                   // 표시 우선순위 (낮을수록 상위)
+  generatedAt: number               // 생성 시각 (ms epoch)
+  isRelevant: boolean               // 현재 상황과의 관련성
+}
+
+type AIFAQResponse = {
+  alertId: string
+  alertTitle: string
+  hazardType: string
+  area: string
+  faqs: AIGeneratedFAQ[]
+  lastUpdated: number
+}
+```
+
+### 9.3 예시
+```json
+{
+  "alertId": "alrt-001",
+  "alertTitle": "대지진 경보 (도쿄 23구)",
+  "hazardType": "earthquake",
+  "area": "도쿄 23구",
+  "faqs": [
+    {
+      "id": "faq-ai-001",
+      "alertId": "alrt-001",
+      "hazardType": "earthquake",
+      "category": "action_guide",
+      "question": "지진이 발생했을 때 가장 먼저 해야 할 일은?",
+      "answer": "먼저 안전한 곳으로 몸을 피하세요. 책상 아래나 견고한 가구 밑으로 들어가 머리를 보호하고, 출입구 근처에서 떨어질 수 있는 물건들로부터 멀리 떨어져 있으세요.",
+      "priority": 1,
+      "generatedAt": 1736400000000,
+      "isRelevant": true
+    },
+    {
+      "id": "faq-ai-002",
+      "alertId": "alrt-001",
+      "hazardType": "earthquake",
+      "category": "evacuation",
+      "question": "지진 후 대피할 때 주의사항은?",
+      "answer": "건물에서 나갈 때는 엘리베이터를 사용하지 말고 계단을 이용하세요. 가스밸브를 잠그고 전기 차단기를 내린 후 안전한 대피장소로 이동하세요.",
+      "priority": 2,
+      "generatedAt": 1736400000000,
+      "isRelevant": true
+    }
+  ],
+  "lastUpdated": 1736400000000
+}
+```
+
+### 9.4 추천 엔드포인트
+- `GET /api/faq/ai?alertId=<alertId>`
+  - 목적: 특정 Alert에 대한 AI생성 FAQ 취득
+  - 예시: `?alertId=alrt-001`
+- `GET /api/faq/ai/active`
+  - 목적: 현재 활성화된 모든 Alert에 대한 FAQ 취득
+  - 반환: `AIFAQResponse[]`
+
+---
+
+## 10. 변경履歴（본版の差분）
 - Incident: `isActive`, `hazard`, `area`, `description` を定義
-- FeedItem: `incidentId` を追加
-- 推奨 REST: `GET /api/feeds?incidentId=<id>` を追加
+- FeedItem: `incidentId` を追가
+- 推奨 REST: `GET /api/feeds?incidentId=<id>` を追가
+- AIGeneratedFAQ: GenAI 기반 FAQ 시스템 추가
