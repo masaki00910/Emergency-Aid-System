@@ -88,14 +88,18 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
         onSelect?.(i)
         if (!infoRef.current) return
         infoRef.current.setContent(
-            `<div style="min-width:220px;color:#000;line-height:1.4;">
-                <div style="font-weight:700;font-size:14px;margin-bottom:5px;">
+            `<div style="min-width:280px;color:#000;line-height:1.4;">
+                <div style="font-weight:700;font-size:14px;margin-bottom:8px;">
                 ${i.title}
                 </div>
-                ${i.area ?? ''}${i.area ? '<br/>' : ''}
-                種別: ${i.hazard ?? '—'} / 重要度: ${i.severity ?? '—'}<br/>
-                ${i.isActive ? '状態: <b>Active</b>' : '状態: Inactive'}<br/>
-                ${i.reportedAt ? new Date(i.reportedAt).toLocaleString() : ''}
+                ${i.location?.admin ?? i.area ?? ''}${(i.location?.admin || i.area) ? '<br/>' : ''}
+                種別: ${i.type ?? i.hazard ?? '—'} / 重要度: ${i.severity ?? '—'}<br/>
+                状態: ${i.status === 'active' ? '<span style="color:#ef4444;font-weight:bold;">Active</span>' : '<span style="color:#6b7280;">Monitoring</span>'}<br/>
+                ${i.reported_at ? new Date(i.reported_at).toLocaleString() : ''}
+                ${i.affected_population ? '<br/>影響人口: <b>' + i.affected_population.toLocaleString() + '人</b>' : ''}
+                ${i.risk_assessment && i.risk_assessment !== 'unknown' ? '<br/>リスク評価: <b>' + i.risk_assessment + '</b>' : ''}
+                ${i.bulletins_count ? '<br/>公報: ' + i.bulletins_count + '件' : ''}
+                ${i.related_news_count ? '<br/>関連ニュース: ' + i.related_news_count + '件' : ''}
             </div>`
             )
         infoRef.current.open({ map: mapObj.current!, anchor: m })
