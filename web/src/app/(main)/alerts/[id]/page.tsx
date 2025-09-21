@@ -19,6 +19,7 @@ export default function AlertDetailPage() {
   const alertId = params.id as string
   
   const [alert, setAlert] = useState<Alert | null>(null)
+  const [incident, setIncident] = useState<Incident | null>(null)
   const [relatedFeeds, setRelatedFeeds] = useState<FeedItem[]>([])
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,38 +29,27 @@ export default function AlertDetailPage() {
       try {
         setLoading(true)
 
-        // Try to fetch as alert first, then as incident
+        // Fetch data directly as incident since all our data comes from disasters API
         let foundAlert: Alert | null = null
 
         try {
-          const alertData = await API.getAlert(alertId)
-          if (alertData) {
-            foundAlert = alertData
+          const incidentData = await API.getIncident(alertId)
+          if (incidentData) {
+            setIncident(incidentData)
+            // Convert incident to alert format for display
+            foundAlert = {
+              id: incidentData.id,
+              title: incidentData.title,
+              level: incidentData.severity === 'high' ? 'warning' as const : incidentData.severity === 'medium' ? 'watch' as const : 'info' as const,
+              area: incidentData.location?.admin || 'Unknown Area',
+              hazard: incidentData.type as 'earthquake' | 'typhoon' | 'flood' | 'landslide' | 'tsunami' | 'wildfire' | 'other',
+              startedAt: new Date(incidentData.reported_at).getTime(),
+              description: incidentData.description,
+              summary: incidentData.description
+            }
           }
         } catch (error) {
-          console.warn('Failed to fetch as alert, trying as incident:', error)
-        }
-
-        if (!foundAlert) {
-          try {
-            const incidentData = await API.getIncident(alertId)
-            if (incidentData) {
-              // Convert incident to alert format for display
-              // Incidents are generally non-active unless they are high severity
-              foundAlert = {
-                id: incidentData.id,
-                title: incidentData.title,
-                area: incidentData.area || 'Unknown Area',
-                hazard: incidentData.hazard || 'other',
-                severity: incidentData.severity || 'medium',
-                startedAt: incidentData.reportedAt,
-                description: incidentData.description,
-                active: incidentData.severity === 'high' || incidentData.severity === '高'
-              }
-            }
-          } catch (error) {
-            console.warn('Failed to fetch as incident:', error)
-          }
+          console.error('Failed to fetch incident data:', error)
         }
 
         if (foundAlert) {
@@ -70,22 +60,29 @@ export default function AlertDetailPage() {
             const related = await API.getFeedsByIncident(alertId)
             setRelatedFeeds(related)
 
-            // Generate timeline from feeds and alert info
+            // Generate timeline from feeds, evidence, and alert info
             const timelineEvents: TimelineEvent[] = [
               {
                 id: 'alert-start',
                 time: new Date(foundAlert.startedAt).toLocaleString('ja-JP'),
                 title: `${foundAlert.title}の発生`,
-                source: '気象庁API',
+                source: 'システム',
                 isAlert: true
               },
               ...related.map(feed => ({
                 id: feed.id,
-                time: new Date(feed.timestamp).toLocaleString('ja-JP'),
+                time: new Date(feed.publishedAt).toLocaleString('ja-JP'),
                 title: feed.title,
                 source: feed.source,
                 isAlert: false
-              }))
+              })),
+              ...(incident?.evidence?.map(evidence => ({
+                id: `evidence-${evidence.hash}`,
+                time: new Date(evidence.timestamp).toLocaleString('ja-JP'),
+                title: evidence.title || 'ニュース報告',
+                source: evidence.source,
+                isAlert: false
+              })) || [])
             ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
 
             setTimeline(timelineEvents)
@@ -151,13 +148,13 @@ export default function AlertDetailPage() {
     }
   }
 
-  // Create incident for map display - matching GoogleMap's MapIncident interface
+  // Create incident for map display - using real location data if available
   const mapIncident = {
     id: alert.id,
-    lat: 35.6762, // Default Tokyo coordinates
-    lng: 139.6503,
+    lat: incident?.location?.lat || 35.6762, // Use real coordinates or default to Tokyo
+    lng: incident?.location?.lng || 139.6503,
     title: alert.title,
-    isActive: alert.active
+    isActive: alert.level === 'warning' || alert.level === 'emergency'
   }
 
   return (
@@ -167,12 +164,12 @@ export default function AlertDetailPage() {
           <h1 className="text-2xl font-bold mb-2">詳細</h1>
           
           {/* Alert Status Banner */}
-          <div className={`border-l-4 p-4 mb-4 ${alert.active ? 'bg-red-50 border-red-500' : 'bg-gray-50 border-gray-400'}`}>
+          <div className={`border-l-4 p-4 mb-4 ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-red-50 border-red-500' : 'bg-gray-50 border-gray-400'}`}>
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className={`px-2 py-1 rounded text-sm font-semibold ${alert.active ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'}`}>
-                    {alert.active ? 'Active Alert' : 'non-Active Alert'}
+                  <span className={`px-2 py-1 rounded text-sm font-semibold ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'}`}>
+                    {alert.level === 'warning' || alert.level === 'emergency' ? 'Active Alert' : 'non-Active Alert'}
                   </span>
                   <span className="text-2xl">{getHazardIcon(alert.hazard)}</span>
                 </div>
@@ -182,7 +179,7 @@ export default function AlertDetailPage() {
                 </div>
               </div>
               <div className="text-right text-sm text-red-600">
-                Alert ID: {alert.id.padStart(6, '0')}
+                Alert ID: {alert.id}
               </div>
             </div>
           </div>
@@ -196,8 +193,8 @@ export default function AlertDetailPage() {
               <h3 className="text-lg font-semibold mb-4">位置情報</h3>
               <div className="h-64 bg-gray-100 rounded-lg overflow-hidden">
                 <GoogleMap
-                  lat={35.6762}
-                  lng={139.6503}
+                  lat={incident?.location?.lat || 35.6762}
+                  lng={incident?.location?.lng || 139.6503}
                   incidents={[mapIncident]}
                 />
               </div>
@@ -226,7 +223,7 @@ export default function AlertDetailPage() {
                   警報
                 </span>
                 <span className="px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-800">
-                  レベル: {alert.severity}
+                  レベル: {incident?.severity || alert.level}
                 </span>
               </div>
             </div>
@@ -236,9 +233,27 @@ export default function AlertDetailPage() {
               <h3 className="text-lg font-semibold mb-4">アラート概要</h3>
               <div className="space-y-4 text-sm">
                 <p>
-                  {alert.description || `${alert.area}で${alert.hazard}に関する${alert.severity}レベルのアラートが発表されています。`}
+                  {alert.description || `${alert.area}で${alert.hazard}に関するアラートが発表されています。`}
                 </p>
-                
+
+                {incident && (
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-semibold mb-2 text-blue-800">詳細情報</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>信頼度: {Math.round((incident.confidence || 0) * 100)}%</div>
+                      <div>ステータス: {incident.status}</div>
+                      <div>情報源: {incident.source?.join(', ')}</div>
+                      <div>位置: {incident.location?.lat?.toFixed(3)}, {incident.location?.lng?.toFixed(3)}</div>
+                      {incident.affected_population !== undefined && (
+                        <div>影響人口: {incident.affected_population.toLocaleString()}人</div>
+                      )}
+                      {incident.risk_assessment && incident.risk_assessment !== 'unknown' && (
+                        <div>リスク評価: {incident.risk_assessment}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-semibold mb-2">注意事項</h4>
                   <ul className="space-y-1 text-xs">
