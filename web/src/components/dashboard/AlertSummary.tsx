@@ -1,23 +1,36 @@
-import type { Incident } from '@/types/incident'
 
-type StatProps = { 
-  label: string; 
+type ModernStatProps = { 
+  title: string;
   value: number; 
-  icon?: string;
-  subtitle?: string;
+  icon: string;
+  description: string;
+  gradient: string;
+  iconBg: string;
 }
 
-function StatCard({ label, value, icon = '⚠️', subtitle }: StatProps) {
+function ModernStatCard({ title, value, icon, description, gradient, iconBg }: ModernStatProps) {
   return (
-    <div className="rounded-xl border bg-white p-4 shadow-sm text-zinc-900">
-      <div className="flex items-center gap-3">
-        <div className="text-2xl">{icon}</div>
-        <div>
-          <div className="text-3xl font-semibold leading-tight">{value.toLocaleString()}</div>
-          <div className="text-sm text-zinc-600">{label}</div>
-          {subtitle && (
-            <div className="text-xs text-zinc-500 mt-1">{subtitle}</div>
-          )}
+    <div className={`rounded-2xl border border-slate-200 bg-gradient-to-br ${gradient} p-6 shadow-lg hover:shadow-xl transition-all duration-300`}>
+      <div className="flex items-start justify-between">
+        <div className="flex-1">
+          <div className="flex items-center gap-3 mb-3">
+            <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${iconBg} shadow-lg`}>
+              <span className="text-xl">{icon}</span>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+            </div>
+          </div>
+          
+          <div className="mb-3">
+            <div className="text-4xl font-black text-slate-900 leading-none">
+              {value.toLocaleString()}
+            </div>
+          </div>
+          
+          <div className="text-sm text-slate-600 leading-relaxed">
+            {description}
+          </div>
         </div>
       </div>
     </div>
@@ -26,35 +39,28 @@ function StatCard({ label, value, icon = '⚠️', subtitle }: StatProps) {
 
 export default function AlertSummary({ 
   active, 
-  today, 
-  incidents = [] 
+  today 
 }: { 
   active: number; 
   today: number;
-  incidents?: Incident[];
 }) {
-  // 🔥 Enhanced Fields から統計を計算
-  const totalAffectedPopulation = incidents.reduce((sum, incident) => 
-    sum + (incident.affected_population || 0), 0
-  )
-  
-  const totalBulletins = incidents.reduce((sum, incident) => 
-    sum + (incident.bulletins_count || 0), 0
-  )
-
   return (
-    <div className="grid grid-cols-2 gap-4">
-      <StatCard 
-        label="Active Alerts" 
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <ModernStatCard 
+        title="Active Alerts"
         value={active} 
-        icon="❗" 
-        subtitle={totalAffectedPopulation > 0 ? `影響人口: ${totalAffectedPopulation.toLocaleString()}人` : undefined}
+        icon="🚨"
+        description="過去24時間以内に発生し、現在進行中の災害アラート数。地震、洪水、台風など、住民に注意喚起が必要な災害の総数です。"
+        gradient="from-red-50 via-red-25 to-white"
+        iconBg="bg-gradient-to-br from-red-500 to-red-600 text-white"
       />
-      <StatCard 
-        label="Events Today" 
+      <ModernStatCard 
+        title="Events Today"
         value={today} 
-        icon="△"
-        subtitle={totalBulletins > 0 ? `公報: ${totalBulletins}件` : undefined}
+        icon="📊"
+        description="過去24時間以内に報告された災害イベント数。気象庁、NHK、自治体からの情報を含む新規災害報告の総数です。"
+        gradient="from-blue-50 via-blue-25 to-white"
+        iconBg="bg-gradient-to-br from-blue-500 to-blue-600 text-white"
       />
     </div>
   )
