@@ -77,9 +77,9 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
     markers.current = []
 
     incidents.forEach(i => {
-      const active = Boolean(i.isActive)
+      const active = i.status === 'active'
       const m = new google.maps.Marker({
-        position: { lat: i.lat, lng: i.lng },
+        position: { lat: i.location.lat, lng: i.location.lng },
         map: mapObj.current!,
         title: i.title,
         icon: markerIcon(active),
@@ -92,8 +92,8 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
                 <div style="font-weight:700;font-size:14px;margin-bottom:8px;">
                 ${i.title}
                 </div>
-                ${i.location?.admin ?? i.area ?? ''}${(i.location?.admin || i.area) ? '<br/>' : ''}
-                種別: ${i.type ?? i.hazard ?? '—'} / 重要度: ${i.severity ?? '—'}<br/>
+                ${i.location?.admin ?? '—'}${i.location?.admin ? '<br/>' : ''}
+                種別: ${i.type ?? '—'} / 重要度: ${i.severity ?? '—'}<br/>
                 状態: ${i.status === 'active' ? '<span style="color:#ef4444;font-weight:bold;">Active</span>' : '<span style="color:#6b7280;">Monitoring</span>'}<br/>
                 ${i.reported_at ? new Date(i.reported_at).toLocaleString() : ''}
                 ${i.affected_population ? '<br/>影響人口: <b>' + i.affected_population.toLocaleString() + '人</b>' : ''}

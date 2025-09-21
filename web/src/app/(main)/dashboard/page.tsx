@@ -71,15 +71,15 @@ export default function DashboardPage() {
               <div className="rounded-xl border bg-white p-4 shadow-sm text-zinc-900">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-sm text-zinc-600">{selected.area ?? '—'}</div>
+                    <div className="text-sm text-zinc-600">{selected.location?.admin ?? '—'}</div>
                     <div className="text-lg font-semibold">{selected.title}</div>
                     <div className="mt-1 text-sm">
-                      種別: {selected.hazard ?? '—'} / 重要度: {selected.severity ?? '—'}
+                      種別: {selected.type ?? '—'} / 重要度: {selected.severity ?? '—'}
                     </div>
                     <div className="mt-1 text-xs text-zinc-600">
-                      {selected.reportedAt ? new Date(selected.reportedAt).toLocaleString() : ''}
+                      {selected.reported_at ? new Date(selected.reported_at).toLocaleString() : ''}
                       {' ・ '}
-                      {selected.lat.toFixed(3)}, {selected.lng.toFixed(3)}
+                      {selected.location?.lat.toFixed(3)}, {selected.location?.lng.toFixed(3)}
                     </div>
                     {selected.description && <p className="mt-2 text-sm">{selected.description}</p>}
                   </div>
