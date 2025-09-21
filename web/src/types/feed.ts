@@ -16,4 +16,9 @@ export type FeedItem = {
   severity?: string
   isAlertCandidate?: boolean
   isVerified?: boolean
+  // Enhanced Fields
+  status?: string
+  risk_assessment?: string
+  has_analysis?: boolean
+  has_collected_info?: boolean
 }
