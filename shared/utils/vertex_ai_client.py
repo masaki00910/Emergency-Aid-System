@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class VertexAIClient:
-    def __init__(self, project_id: str, location: str = "asia-northeast1"):
+    def __init__(self, project_id: str, location: str = "asia-northeast1"):#"us-central1"
         self.project_id = project_id
         self.location = location
         self.is_local_mode = self._is_local_mode()
@@ -135,6 +135,96 @@ URL: {source_info.get('url', '不明')}
         except Exception as e:
             logger.error(f"Failed to parse JSON response: {e}")
             return {"error": "JSON parsing failed", "raw_response": response}
+        
+        
+    async def extract_keywords(self, content: str, max_keywords: int = 3) -> List[str]:
+        """
+        災害関連のキーワードをAIで抽出
+        """
+        prompt = f"""
+    あなたは災害情報の専門家です。以下の文章から災害に関連する重要なキーワードを{max_keywords}個抽出してください。
+    回答はJSON配列で返してください。
 
+    文章:
+    {content}
+
+    回答例:
+    ["地震", "津波", "避難"]
+
+    キーワード:
+    """
+        try:
+            response = await self.llm_gemini_pro.ainvoke(prompt)
+            import json
+            response_text = response.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            return json.loads(response_text)
+        except Exception as e:
+            logger.error(f"Vertex AI keyword extraction failed: {e}")
+            return []
+
+    async def generate_faq_dynamic(self, keyword: str, context: str) -> List[Dict[str, str]]:
+        """
+        与えられたキーワードと文章コンテキストからFAQを生成
+        """
+        prompt = f"""
+あなたはFAQ生成の専門家です。以下のキーワードに関するFAQを文章コンテキストを考慮して作成してください。
+FAQは必ず3つ生成してください。
+重複は避けてください。
+
+キーワード: {keyword}
+文章: {context}
+
+JSON形式で回答してください:
+[
+  {{"question": "質問文", "answer": "回答文"}}
+]
+"""
+        try:
+            response = await self.llm_gemini_pro.ainvoke(prompt)
+            import json
+            response_text = response.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            faqs = json.loads(response_text)
+            # dict なら list に変換
+            if isinstance(faqs, dict):
+                faqs = [faqs]
+            return faqs
+        except Exception as e:
+            logger.error(f"Vertex AI FAQ generation failed: {e}")
+            return [{"question": f"{keyword}に関する質問生成失敗", "answer": ""}]
+        
+        
+    async def answer_with_faq(self, faqs: List[Dict[str, str]], user_question: str) -> str:
+        """
+        FAQとユーザの質問を元に回答を生成
+        """
+        faq_context = "\n".join([f"Q: {f['question']}\nA: {f['answer']}" for f in faqs])
+
+        prompt = f"""
+あなたは災害情報の専門家としてFAQ対応を行うアシスタントです。
+以下のFAQを参考にしてください。FAQに直接回答がなくても、関連知識から適切に答えてください。
+
+FAQ一覧:
+{faq_context}
+
+ユーザの質問:
+{user_question}
+
+回答:
+"""
+
+        try:
+            response = await self.llm_gemini_pro.ainvoke(prompt)
+            return response.strip()
+        except Exception as e:
+            logger.error(f"FAQ answer generation failed: {e}")
+            return "すみません、回答を生成できませんでした。"        
 
 vertex_ai_client = VertexAIClient(os.getenv("GOOGLE_CLOUD_PROJECT", ""))
