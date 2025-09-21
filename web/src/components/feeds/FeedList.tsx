@@ -73,25 +73,9 @@ export default function FeedList({
                       📊 深刻度：{f.severity === 'high' ? '高' : f.severity === 'medium' ? '中' : '低'}
                     </span>
                   )}
-                  {/* 🔥 Enhanced Fields Display - Modern Design */}
                   {f.status === 'active' && f.severity !== 'low' && f.category !== 'その他' && f.category !== '' && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-red-500 to-red-600 px-3 py-1 text-xs font-medium text-white shadow-md">
                       🚨 アクティブ
-                    </span>
-                  )}
-                  {f.risk_assessment && f.risk_assessment !== 'unknown' && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-purple-100 to-purple-200 px-3 py-1 text-xs font-medium text-purple-800 shadow-sm">
-                      ⚠️ {f.risk_assessment}リスク
-                    </span>
-                  )}
-                  {f.has_analysis && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-indigo-100 to-indigo-200 px-3 py-1 text-xs font-medium text-indigo-800 shadow-sm">
-                      🔍 分析済
-                    </span>
-                  )}
-                  {f.has_collected_info && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-teal-100 to-teal-200 px-3 py-1 text-xs font-medium text-teal-800 shadow-sm">
-                      📊 情報収集済
                     </span>
                   )}
                 </div>

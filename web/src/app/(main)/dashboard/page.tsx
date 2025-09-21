@@ -103,22 +103,86 @@ export default function DashboardPage() {
               items={feeds} 
               highlightId={highlightFeedId} 
               onFeedClick={(feedId) => {
-                // Find the incident associated with this feed
                 const feed = feeds.find(f => f.id === feedId)
+                console.log('=== Feed Click Debug ===')
+                console.log('Clicked feed ID:', feedId)
+                console.log('Found feed:', feed)
+                console.log('Feed incidentId:', feed?.incidentId)
+                console.log('All incidents IDs:', incidents.map(i => i.id))
+                console.log('All feeds with incidentId:', feeds.map(f => ({ id: f.id, incidentId: f.incidentId, title: f.title.substring(0, 30) })))
+                
+                // Strategy 1: Direct incidentId match
                 if (feed && feed.incidentId) {
-                  setFocusIncidentId(feed.incidentId)
-                  setHighlightFeedId(feedId)
-                } else {
-                  // If no direct incidentId, try to find by matching title or other criteria
-                  const matchingIncident = incidents.find(incident => 
-                    incident.title === feed?.title || 
-                    incident.id === feedId
-                  )
-                  if (matchingIncident) {
-                    setFocusIncidentId(matchingIncident.id)
+                  console.log('✅ Strategy 1: Using direct incidentId:', feed.incidentId)
+                  const foundIncident = incidents.find(i => i.id === feed.incidentId)
+                  console.log('Corresponding incident found:', !!foundIncident, foundIncident?.title?.substring(0, 30))
+                  if (foundIncident) {
+                    setFocusIncidentId(feed.incidentId)
                     setHighlightFeedId(feedId)
+                    console.log('=== Success with Strategy 1 ===')
+                    return
                   }
                 }
+                
+                // Strategy 2: Same ID (feed.id === incident.id)
+                console.log('❌ Strategy 1 failed, trying Strategy 2: Same ID')
+                let matchingIncident = incidents.find(incident => incident.id === feedId)
+                if (matchingIncident) {
+                  console.log('✅ Strategy 2: Found incident with same ID')
+                  setFocusIncidentId(matchingIncident.id)
+                  setHighlightFeedId(feedId)
+                  console.log('=== Success with Strategy 2 ===')
+                  return
+                }
+                
+                // Strategy 3: Exact title match
+                if (feed?.title) {
+                  console.log('❌ Strategy 2 failed, trying Strategy 3: Exact title match')
+                  matchingIncident = incidents.find(incident => incident.title === feed.title)
+                  if (matchingIncident) {
+                    console.log('✅ Strategy 3: Found incident with exact title match')
+                    setFocusIncidentId(matchingIncident.id)
+                    setHighlightFeedId(feedId)
+                    console.log('=== Success with Strategy 3 ===')
+                    return
+                  }
+                }
+                
+                // Strategy 4: Partial title match
+                if (feed?.title) {
+                  console.log('❌ Strategy 3 failed, trying Strategy 4: Partial title match')
+                  matchingIncident = incidents.find(incident => 
+                    incident.title.includes(feed.title.substring(0, 20)) || 
+                    feed.title.includes(incident.title.substring(0, 20))
+                  )
+                  if (matchingIncident) {
+                    console.log('✅ Strategy 4: Found incident with partial title match')
+                    setFocusIncidentId(matchingIncident.id)
+                    setHighlightFeedId(feedId)
+                    console.log('=== Success with Strategy 4 ===')
+                    return
+                  }
+                }
+                
+                // Strategy 5: Area-based matching
+                if (feed?.area) {
+                  console.log('❌ Strategy 4 failed, trying Strategy 5: Area-based matching')
+                  matchingIncident = incidents.find(incident => 
+                    incident.location?.admin === feed.area ||
+                    incident.location?.admin?.includes(feed.area) ||
+                    feed.area.includes(incident.location?.admin || '')
+                  )
+                  if (matchingIncident) {
+                    console.log('✅ Strategy 5: Found incident with area match')
+                    setFocusIncidentId(matchingIncident.id)
+                    setHighlightFeedId(feedId)
+                    console.log('=== Success with Strategy 5 ===')
+                    return
+                  }
+                }
+                
+                console.log('❌ All strategies failed - no matching incident found')
+                console.log('=== End Debug ===')
               }}
             />
           </div>

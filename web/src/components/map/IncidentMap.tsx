@@ -4,9 +4,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Loader } from '@googlemaps/js-api-loader'
 import type { Incident } from '@/types/incident'
 
+declare global {
+  interface Window {
+    google: any
+  }
+}
+
 type Props = {
   incidents: Incident[]
-  center?: google.maps.LatLngLiteral
+  center?: { lat: number; lng: number }
   zoom?: number
   onCountsChange?: (counts: { active: number; total: number }) => void
   onSelect?: (incident: Incident) => void
@@ -15,20 +21,20 @@ type Props = {
 
 export default function IncidentMap({ incidents, center, zoom = 7, onCountsChange, onSelect, focusIncidentId }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
-  const mapObj = useRef<google.maps.Map | null>(null)
-  const markers = useRef<{ marker: google.maps.Marker; isActive: boolean; incident: Incident }[]>([])
+  const mapObj = useRef<any>(null)
+  const markers = useRef<{ marker: any; isActive: boolean; incident: Incident }[]>([])
   const [mapReady, setMapReady] = useState(false)
-  const infoRef = useRef<google.maps.InfoWindow | null>(null)
+  const infoRef = useRef<any>(null)
 
   const mapCenter = useMemo(
     () => center ?? ({ lat: 35.681236, lng: 139.767125 }),
     [center]
   )
 
-  function markerIcon(isActive: boolean): google.maps.Symbol {
+  function markerIcon(isActive: boolean): any {
     return {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: 6,
+      path: 0, // google.maps.SymbolPath.CIRCLE
+      scale: 8,
       fillColor: isActive ? '#dc2626' : '#2563eb', // Modern red for active, modern blue for inactive
       fillOpacity: 0.9,
       strokeColor: '#ffffff',
@@ -56,13 +62,13 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
     })
     let mounted = true
     loader.load().then(() => {
-      if (!mounted || !mapRef.current) return
-      mapObj.current = new google.maps.Map(mapRef.current, {
+      if (!mounted || !mapRef.current || !window.google) return
+      mapObj.current = new window.google.maps.Map(mapRef.current, {
         center: mapCenter, zoom,
         mapTypeControl: false, fullscreenControl: false, streetViewControl: false,
       })
       mapObj.current.addListener('idle', recalcCountsInViewport)
-      infoRef.current = new google.maps.InfoWindow()
+      infoRef.current = new window.google.maps.InfoWindow()
       setMapReady(true)
     })
     return () => {
@@ -78,6 +84,12 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
     markers.current = []
 
     incidents.forEach(i => {
+      // Skip incidents without valid location data
+      if (!i.location || typeof i.location.lat !== 'number' || typeof i.location.lng !== 'number') {
+        console.warn('Skipping incident with invalid location:', i.id, i.location)
+        return
+      }
+      
       // Use same active conditions as feeds and alerts
       const hazardMapping: Record<string, {name: string, icon: string}> = {
         'earthquake': {name: '地震', icon: '🌍'},
@@ -89,11 +101,11 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
         'wildfire': {name: '山火事', icon: '🔥'},
         'other': {name: 'その他', icon: '⚠️'}
       }
-      const hazardInfo = hazardMapping[i.hazard] || hazardMapping['other']
-      const active = Boolean(i.isActive && i.severity !== 'low' && hazardInfo.name !== 'その他' && hazardInfo.name !== '')
+      const hazardInfo = hazardMapping[i.type] || hazardMapping['other']
+      const active = Boolean(i.is_active && i.severity !== 'low' && hazardInfo.name !== 'その他' && hazardInfo.name !== '')
       
-      const m = new google.maps.Marker({
-        position: { lat: i.lat, lng: i.lng },
+      const m = new window.google.maps.Marker({
+        position: { lat: i.location.lat, lng: i.location.lng },
         map: mapObj.current!,
         title: i.title,
         icon: markerIcon(active),
@@ -102,7 +114,7 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
         onSelect?.(i)
         if (!infoRef.current) return
         // Reuse hazardInfo from above
-        const displayArea = !i.area || i.area === '不明' || i.area === 'unknown' ? '地域不明' : i.area
+        const displayArea = !i.location?.admin || i.location.admin === '不明' || i.location.admin === 'unknown' ? '地域不明' : i.location.admin
         
         // Time ago function for consistent time display
         const timeAgo = (reportedAt: number) => {
@@ -138,7 +150,7 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
                 </div>
                 
                 <div style="font-size:12px;color:#6b7280;display:flex;align-items:center;gap:4px;">
-                    🕒 ${i.reportedAt ? timeAgo(i.reportedAt) : '時刻不明'}
+                    🕒 ${i.reported_at ? timeAgo(new Date(i.reported_at).getTime()) : '時刻不明'}
                 </div>
             </div>`
             )
@@ -155,6 +167,7 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
     if (!mapReady || !mapObj.current || !focusIncidentId) return
 
     const targetMarker = markers.current.find(m => m.incident.id === focusIncidentId)
+    
     if (targetMarker) {
       const position = targetMarker.marker.getPosition()
       if (position) {
@@ -164,7 +177,9 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
         
         // Trigger click on the marker to show info window
         setTimeout(() => {
-          google.maps.event.trigger(targetMarker.marker, 'click')
+          if (window.google?.maps) {
+            window.google.maps.event.trigger(targetMarker.marker, 'click')
+          }
         }, 300)
       }
     }

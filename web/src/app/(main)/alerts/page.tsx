@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { API } from '@/lib/api'
-import type { Alert, Incident } from '@/lib/api'
+import type { Alert } from '@/types/alert'
+import type { Incident } from '@/types/incident'
 
 type AlertLevel = 'Active' | 'non-Active' | 'all'
 type AlertTag = 'flood' | 'earthquake' | 'landslide' | 'typhoon' | 'tsunami' | 'other' | 'all'
@@ -11,6 +12,7 @@ type AlertTag = 'flood' | 'earthquake' | 'landslide' | 'typhoon' | 'tsunami' | '
 export default function AlertsPage() {
   const [selectedLevel, setSelectedLevel] = useState<AlertLevel>('all')
   const [selectedTag, setSelectedTag] = useState<AlertTag>('all')
+  const [selectedRegion, setSelectedRegion] = useState<string>('全国')
   const [searchQuery, setSearchQuery] = useState('')
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
   const [alerts, setAlerts] = useState<Alert[]>([])
@@ -37,39 +39,58 @@ export default function AlertsPage() {
     fetchData()
   }, [])
 
-  // Combine alerts and incidents for display
-  const allAlerts = [
-    ...alerts.map(alert => ({ 
-      ...alert,
-      // API Alert already has severity as string, keep it
-      // Keep the active field from the alert
-    })),
-    ...incidents.map(incident => ({
-      id: incident.id,
-      title: incident.title,
-      area: incident.area,
-      hazard: incident.hazard,
-      severity: incident.severity,
-      startedAt: incident.reportedAt,
-      description: incident.description,
-      // Incidents don't have active field, default to false
-      active: false
-    }))
-  ]
+  // Region mapping for Japanese prefectures
+  const getRegionFromArea = (area: string): string => {
+    const regionMap: Record<string, string[]> = {
+      '北海道': ['北海道'],
+      '東北': ['青森', '岩手', '宮城', '秋田', '山形', '福島'],
+      '関東': ['茨城', '栃木', '群馬', '埼玉', '千葉', '東京', '神奈川'],
+      '中部': ['新潟', '富山', '石川', '福井', '山梨', '長野', '岐阜', '静岡', '愛知'],
+      '近畿': ['三重', '滋賀', '京都', '大阪', '兵庫', '奈良', '和歌山'],
+      '中国': ['鳥取', '島根', '岡山', '広島', '山口'],
+      '四国': ['徳島', '香川', '愛媛', '高知'],
+      '九州': ['福岡', '佐賀', '長崎', '熊本', '大分', '宮崎', '鹿児島', '沖縄']
+    }
+
+    for (const [region, prefectures] of Object.entries(regionMap)) {
+      if (prefectures.some(pref => area.includes(pref))) {
+        return region
+      }
+    }
+    return '全国'
+  }
+
+  // Use incidents as the primary source since alerts are derived from incidents
+  const allAlerts = incidents.map(incident => ({
+    id: incident.id,
+    title: incident.title,
+    area: incident.location?.admin || '不明',
+    hazard: incident.type,
+    severity: incident.severity,
+    startedAt: incident.reported_at ? new Date(incident.reported_at).getTime() : Date.now(),
+    description: incident.description,
+    region: getRegionFromArea(incident.location?.admin || ''),
+    // More sophisticated active determination based on status and severity
+    active: incident.status === 'active' ||
+           (incident.severity === 'high' && incident.status !== 'resolved') ||
+           (incident.reported_at ? (Date.now() - new Date(incident.reported_at).getTime()) < 12 * 60 * 60 * 1000 : false) // 12 hours instead of 24
+  }))
 
   // フィルタリング
   const filteredAlerts = allAlerts.filter(alert => {
-    const levelMatch = selectedLevel === 'all' || 
+    const levelMatch = selectedLevel === 'all' ||
       (selectedLevel === 'Active' && alert.active === true) ||
       (selectedLevel === 'non-Active' && alert.active === false)
-    
+
     const tagMatch = selectedTag === 'all' || alert.hazard === selectedTag
-    
-    const searchMatch = searchQuery === '' || 
+
+    const regionMatch = selectedRegion === '全国' || alert.region === selectedRegion
+
+    const searchMatch = searchQuery === '' ||
       alert.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (alert.area && alert.area.toLowerCase().includes(searchQuery.toLowerCase()))
-    
-    return levelMatch && tagMatch && searchMatch
+
+    return levelMatch && tagMatch && regionMatch && searchMatch
   })
 
   const activeCount = allAlerts.filter(a => a.active === true).length
@@ -194,7 +215,7 @@ export default function AlertsPage() {
               }`}
               onClick={() => setSelectedLevel('all')}
             >
-              ✓ すべて
+              🔍 すべて
             </button>
             <button
               className={`flex-1 px-4 py-2 rounded-md transition-all ${
@@ -202,7 +223,7 @@ export default function AlertsPage() {
               }`}
               onClick={() => setSelectedLevel('Active')}
             >
-              □ Activeのみ
+              🔴 Activeのみ
             </button>
             <button
               className={`flex-1 px-4 py-2 rounded-md transition-all ${
@@ -210,7 +231,7 @@ export default function AlertsPage() {
               }`}
               onClick={() => setSelectedLevel('non-Active')}
             >
-              □ non-Activeのみ
+              ⚪ non-Activeのみ
             </button>
           </div>
         </div>
@@ -218,16 +239,20 @@ export default function AlertsPage() {
         {/* 地域・エリア */}
         <div className="mb-6">
           <label className="block text-sm font-medium mb-2">地域・エリア</label>
-          <select className="w-full px-4 py-2 border rounded-lg bg-white">
-            <option>全国</option>
-            <option>北海道</option>
-            <option>東北</option>
-            <option>関東</option>
-            <option>中部</option>
-            <option>近畿</option>
-            <option>中国</option>
-            <option>四国</option>
-            <option>九州</option>
+          <select
+            className="w-full px-4 py-2 border rounded-lg bg-white"
+            value={selectedRegion}
+            onChange={(e) => setSelectedRegion(e.target.value)}
+          >
+            <option value="全国">全国</option>
+            <option value="北海道">北海道</option>
+            <option value="東北">東北</option>
+            <option value="関東">関東</option>
+            <option value="中部">中部</option>
+            <option value="近畿">近畿</option>
+            <option value="中国">中国</option>
+            <option value="四国">四国</option>
+            <option value="九州">九州</option>
           </select>
         </div>
 
