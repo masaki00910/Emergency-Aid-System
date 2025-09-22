@@ -1,12 +1,12 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$COMMIT_SHA', '.']
+    args: ['build', '-t', 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$SHORT_SHA', '.']
     timeout: '1800s'
 
-  # Push the container image to Artifact Registry
+  # Push the container image to Artifact Registry  
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$COMMIT_SHA']
+    args: ['push', 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$SHORT_SHA']
 
   # Deploy container image to Cloud Run
   - name: 'gcr.io/cloud-builders/gcloud'
@@ -15,7 +15,7 @@ steps:
       - 'deploy'
       - 'disaster-api'
       - '--image'
-      - 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$COMMIT_SHA'
+      - 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$SHORT_SHA'
       - '--region'
       - 'asia-northeast1'
       - '--platform'
@@ -29,11 +29,18 @@ steps:
       - '8080'
       - '--set-env-vars'
       - 'GOOGLE_CLOUD_PROJECT=sharelabai-hackathon2,USE_MOCK_LLM=false'
+      - '--service-account'
+      - 'disaster-system@sharelabai-hackathon2.iam.gserviceaccount.com'
 
 images:
-  - 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$COMMIT_SHA'
+  - 'asia-northeast1-docker.pkg.dev/sharelabai-hackathon2/cloud-run-source-deploy/disaster-api:$SHORT_SHA'
 
 options:
   machineType: 'E2_HIGHCPU_8'
   diskSizeGb: 100
+  logging: CLOUD_LOGGING_ONLY
 timeout: '3600s'
+
+substitutions:
+  _SERVICE_NAME: disaster-api
+  _REGION: asia-northeast1
