@@ -7,9 +7,10 @@ import os
 import json
 import sys
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 from datetime import datetime
 import logging
+from typing import List, Dict, Any
 
 # 環境変数設定
 os.environ['GOOGLE_CLOUD_PROJECT'] = 'sharelabai-hackathon2'
@@ -25,6 +26,15 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 sys.path.append(current_dir)
 
+# Firestoreクライアント設定
+try:
+    from google.cloud import firestore
+    FIRESTORE_AVAILABLE = True
+    logger.info("✅ Firestore client available")
+except ImportError:
+    logger.error("❌ google-cloud-firestore not available. Please install: pip install google-cloud-firestore")
+    FIRESTORE_AVAILABLE = False
+
 class ProductionFAQHandler(BaseHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         # Vertex AI クライアント初期化
@@ -37,7 +47,17 @@ class ProductionFAQHandler(BaseHTTPRequestHandler):
         except Exception as e:
             logger.error(f"❌ Failed to initialize Vertex AI: {e}")
             self.vertex_client = None
-            
+        
+        # Firestore クライアント初期化
+        self.db = None
+        if FIRESTORE_AVAILABLE:
+            try:
+                self.db = firestore.Client(project=os.getenv('GOOGLE_CLOUD_PROJECT', 'sharelabai-hackathon2'))
+                logger.info("✅ Firestore client initialized")
+            except Exception as e:
+                logger.error(f"❌ Firestore initialization failed: {e}")
+                self.db = None
+        
         super().__init__(*args, **kwargs)
     
     def do_OPTIONS(self):
@@ -284,30 +304,46 @@ class ProductionFAQHandler(BaseHTTPRequestHandler):
         self.send_json_response([])
     
     def handle_disasters(self):
-        """災害一覧データ"""
-        disasters = [
-            {
-                "id": "sample-disaster-1",
-                "title": "金沢市内での大雨による洪水警報",
-                "description": "犀川・浅野川流域で水位上昇。避難準備情報が発表されています。",
-                "type": "flood",
-                "severity": "high",
-                "location": {"lat": 36.5944, "lng": 136.6258, "admin": "金沢市"},
-                "reported_at": "2025-09-22T15:00:00Z",
-                "confidence": 0.9,
-                "source": ["金沢市防災"],
-                "evidence": [],
-                "status": "active"
+        """災害一覧データ - Firestoreから取得"""
+        try:
+            disasters = self.fetch_disasters_from_firestore()
+            
+            response = {
+                "disasters": disasters,
+                "total": len(disasters),
+                "source": "firestore+vertex_ai",
+                "timestamp": datetime.now().isoformat() + 'Z'
             }
-        ]
-        
-        response = {
-            "disasters": disasters,
-            "total": len(disasters),
-            "source": "production+vertex_ai"
-        }
-        
-        self.send_json_response(response)
+            
+            self.send_json_response(response)
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to fetch disasters: {e}")
+            # フォールバック用サンプルデータ
+            fallback_disasters = [
+                {
+                    "id": "sample-disaster-1",
+                    "title": "金沢市内での大雨による洪水警報",
+                    "description": "犀川・浅野川流域で水位上昇。避難準備情報が発表されています。",
+                    "type": "flood",
+                    "severity": "high",
+                    "location": {"lat": 36.5944, "lng": 136.6258, "admin": "金沢市"},
+                    "reported_at": "2025-09-22T15:00:00Z",
+                    "confidence": 0.9,
+                    "source": ["金沢市防災"],
+                    "evidence": [],
+                    "status": "active"
+                }
+            ]
+            
+            response = {
+                "disasters": fallback_disasters,
+                "total": len(fallback_disasters),
+                "source": "fallback_data",
+                "error": str(e)
+            }
+            
+            self.send_json_response(response)
     
     def handle_alerts(self):
         """アラート一覧"""
@@ -325,22 +361,29 @@ class ProductionFAQHandler(BaseHTTPRequestHandler):
         self.send_json_response(alerts)
     
     def handle_feeds(self):
-        """フィード一覧 - LLMで拡張生成"""
+        """フィード一覧 - Firestoreから取得してLLMで拡張"""
         try:
-            base_feeds = self.get_base_feeds()
+            # Firestoreから実際の災害データを取得
+            disasters = self.fetch_disasters_from_firestore()
             
-            if self.vertex_client:
-                # LLMで追加フィードを生成
-                additional_feeds = self.generate_feeds_with_llm()
-                all_feeds = base_feeds + additional_feeds
+            # 災害データをフィード形式に変換
+            firestore_feeds = self.convert_disasters_to_feeds(disasters)
+            
+            if self.vertex_client and len(firestore_feeds) > 0:
+                # LLMで追加フィードを生成（実際のデータに基づく）
+                additional_feeds = self.generate_feeds_with_llm_from_real_data(disasters)
+                all_feeds = firestore_feeds + additional_feeds
             else:
-                all_feeds = base_feeds
+                all_feeds = firestore_feeds
                 
+            logger.info(f"📡 Generated {len(all_feeds)} feeds from Firestore data")
             self.send_json_response(all_feeds)
             
         except Exception as e:
             logger.error(f"❌ Feed generation error: {e}")
-            self.send_json_response(self.get_base_feeds())
+            # フォールバック
+            fallback_feeds = self.get_base_feeds()
+            self.send_json_response(fallback_feeds)
     
     def get_base_feeds(self):
         """基本フィードデータ"""
@@ -402,6 +445,208 @@ class ProductionFAQHandler(BaseHTTPRequestHandler):
                         "category": feed.get("category", "情報"),
                         "severity": feed.get("severity", "medium"),
                         "summary": feed.get("summary", "LLMにより生成された情報"),
+                        "url": "#",
+                        "labels": ["llm-generated", feed.get("severity", "medium")],
+                        "isAlertCandidate": feed.get("severity") == "high",
+                        "status": "active",
+                        "risk_assessment": feed.get("severity", "medium"),
+                        "has_analysis": True,
+                        "has_collected_info": True
+                    })
+                
+                return additional_feeds
+                
+            except json.JSONDecodeError:
+                logger.error("❌ Failed to parse LLM feed response")
+                return []
+                
+        except Exception as e:
+            logger.error(f"❌ LLM feed generation error: {e}")
+            return []
+    
+    def fetch_disasters_from_firestore(self) -> List[Dict[str, Any]]:
+        """Firestoreから災害データを取得"""
+        if not self.db:
+            logger.warning("❌ Firestore client not available, using fallback data")
+            return []
+        
+        try:
+            logger.info("🔍 Querying Firestore for disasters...")
+            
+            # 'incidents' コレクションから取得
+            collection_ref = self.db.collection('incidents')
+            
+            # 最新順でソート
+            query = collection_ref.order_by('detected_at', direction=firestore.Query.DESCENDING)
+            
+            # 最大50件に制限
+            query = query.limit(50)
+            
+            docs = query.stream()
+            disasters = []
+            
+            for doc in docs:
+                data = doc.to_dict()
+                data['id'] = doc.id
+                
+                # フロントエンド互換性のためデータ変換
+                transformed_data = self.transform_firestore_data(data)
+                disasters.append(transformed_data)
+            
+            logger.info(f"✅ Found {len(disasters)} disasters in Firestore")
+            return disasters
+            
+        except Exception as e:
+            logger.error(f"❌ Firestore query failed: {e}")
+            return []
+    
+    def transform_firestore_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Firestoreデータをフロントエンド形式に変換"""
+        try:
+            # 基本的な変換
+            transformed = {
+                'id': data.get('id', ''),
+                'title': data.get('title', '不明な災害'),
+                'description': data.get('description', data.get('title', '')),
+                'type': data.get('type', data.get('hazard', 'other')),
+                'severity': self.convert_severity(data.get('severity', 2)),
+                'location': data.get('location', {'lat': 35.6762, 'lng': 139.6503, 'admin': '不明'}),
+                'reported_at': self.convert_timestamp(data.get('detected_at', data.get('reported_at'))),
+                'confidence': data.get('confidence', 0.8),
+                'source': data.get('source', ['API']),
+                'evidence': data.get('evidence', []),
+                'status': self.determine_status(data),
+                'is_active': True,
+                'affected_population': data.get('affected_population'),
+                'risk_assessment': data.get('risk_assessment', 'unknown'),
+                'has_analysis': data.get('has_analysis', False),
+                'has_collected_info': data.get('has_collected_info', False)
+            }
+            
+            return transformed
+            
+        except Exception as e:
+            logger.error(f"❌ Transform error: {e}")
+            return data
+    
+    def convert_severity(self, severity):
+        """数値の重要度を文字列に変換"""
+        if isinstance(severity, (int, float)):
+            if severity >= 3:
+                return 'high'
+            elif severity >= 2:
+                return 'medium'
+            else:
+                return 'low'
+        return severity or 'medium'
+    
+    def convert_timestamp(self, timestamp):
+        """タイムスタンプを変換"""
+        if timestamp:
+            if hasattr(timestamp, 'isoformat'):
+                return timestamp.isoformat() + 'Z'
+            elif isinstance(timestamp, str):
+                return timestamp
+        return datetime.now().isoformat() + 'Z'
+    
+    def determine_status(self, data):
+        """ステータスを決定"""
+        severity = data.get('severity', 2)
+        if isinstance(severity, (int, float)) and severity >= 3:
+            return 'active'
+        return 'monitoring'
+    
+    def convert_disasters_to_feeds(self, disasters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """災害データをフィード形式に変換"""
+        feeds = []
+        
+        for disaster in disasters:
+            feed = {
+                "id": f"feed-{disaster['id']}",
+                "incidentId": disaster['id'],
+                "title": disaster['title'],
+                "source": disaster.get('source', ['不明'])[0] if disaster.get('source') else '不明',
+                "publishedAt": int(datetime.fromisoformat(disaster['reported_at'].replace('Z', '+00:00')).timestamp() * 1000),
+                "area": disaster.get('location', {}).get('admin', '不明'),
+                "hazard": disaster['type'],
+                "category": self.get_hazard_category(disaster['type']),
+                "severity": disaster['severity'],
+                "summary": disaster['description'],
+                "url": "#",
+                "labels": [disaster['type'], disaster['severity']],
+                "isAlertCandidate": disaster['severity'] == 'high',
+                "status": disaster['status'],
+                "risk_assessment": disaster.get('risk_assessment', 'unknown'),
+                "has_analysis": disaster.get('has_analysis', False),
+                "has_collected_info": disaster.get('has_collected_info', False)
+            }
+            feeds.append(feed)
+        
+        return feeds
+    
+    def get_hazard_category(self, hazard_type: str) -> str:
+        """ハザードタイプを日本語カテゴリに変換"""
+        hazard_mapping = {
+            'earthquake': '地震',
+            'tsunami': '津波',
+            'flood': '洪水',
+            'typhoon': '台風',
+            'landslide': '土砂災害',
+            'volcano': '火山',
+            'wildfire': '山火事',
+            'other': 'その他'
+        }
+        return hazard_mapping.get(hazard_type, hazard_type)
+    
+    def generate_feeds_with_llm_from_real_data(self, disasters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """実際の災害データに基づいてLLMで追加フィードを生成"""
+        if not disasters:
+            return []
+        
+        try:
+            # 最新の災害情報を基にプロンプトを作成
+            latest_disaster = disasters[0]
+            disaster_context = f"""
+現在の災害状況:
+- 災害タイプ: {latest_disaster['type']}
+- 地域: {latest_disaster.get('location', {}).get('admin', '不明')}
+- 重要度: {latest_disaster['severity']}
+- 説明: {latest_disaster['description']}
+"""
+
+            prompt = f"""現在の災害状況に基づいて、関連する追加の情報フィードを2つ生成してください。
+
+{disaster_context}
+
+以下のJSON形式で回答してください:
+[
+  {{
+    "title": "フィードタイトル",
+    "source": "情報源",
+    "category": "カテゴリ",
+    "summary": "要約（100文字程度）",
+    "severity": "high|medium|low"
+  }}
+]"""
+
+            response_text = self.vertex_client.generate_text(prompt)
+            
+            try:
+                feed_data = json.loads(response_text.strip())
+                additional_feeds = []
+                
+                for i, feed in enumerate(feed_data[:2]):
+                    additional_feeds.append({
+                        "id": f"feed-llm-{i+1}",
+                        "incidentId": latest_disaster['id'],
+                        "title": feed.get("title", "LLM生成フィード"),
+                        "source": feed.get("source", "AI生成"),
+                        "publishedAt": int((datetime.now().timestamp() - (i+1) * 3600) * 1000),
+                        "area": latest_disaster.get('location', {}).get('admin', '不明'),
+                        "hazard": latest_disaster['type'],
+                        "category": feed.get("category", "情報"),
+                        "severity": feed.get("severity", "medium"),
+                        "summary": feed.get("summary", "LLMにより生成された関連情報"),
                         "url": "#",
                         "labels": ["llm-generated", feed.get("severity", "medium")],
                         "isAlertCandidate": feed.get("severity") == "high",
