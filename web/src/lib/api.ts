@@ -346,7 +346,7 @@ export class RestApiService {
 
   static async getIncidents(since?: number): Promise<Incident[]> {
     try {
-      const response = await fetch(`/api/disasters`)
+      const response = await fetch(`/api/public/disasters`)
       if (!response.ok) {
         console.error('Failed to fetch disasters from API')
         return []
@@ -376,7 +376,7 @@ export class RestApiService {
 
   static async getIncident(id: string): Promise<Incident | null> {
     try {
-      const response = await fetch(`/api/disasters/${id}`)
+      const response = await fetch(`/api/public/disasters/${id}`)
       if (!response.ok) return null
       const disaster = await response.json()
       return this.transformDisasterToIncident(disaster)
@@ -438,7 +438,7 @@ export class RestApiService {
 
   static async getAlerts(activeOnly: boolean = false): Promise<Alert[]> {
     try {
-      const response = await fetch(`/api/disasters`)
+      const response = await fetch(`/api/public/disasters`)
       if (!response.ok) {
         console.error('Failed to fetch disasters for alerts')
         return []
@@ -466,7 +466,7 @@ export class RestApiService {
 
   static async getAlert(id: string): Promise<Alert | null> {
     try {
-      const response = await fetch(`/api/disasters/${id}`)
+      const response = await fetch(`/api/public/disasters/${id}`)
       if (!response.ok) return null
       const disaster = await response.json()
       return this.transformDisasterToAlert(disaster)
@@ -479,7 +479,7 @@ export class RestApiService {
   static async getFeeds(limitCount: number = 50): Promise<FeedItem[]> {
     try {
       // Since there's no feed endpoint, create feeds from disaster evidence
-      const response = await fetch(`/api/disasters`)
+      const response = await fetch(`/api/public/disasters`)
       if (!response.ok) {
         console.error('Failed to fetch disasters for feeds')
         return []

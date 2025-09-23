@@ -36,7 +36,7 @@ export default function MobileHeader({ onToggleSidebar }: MobileHeaderProps) {
               </svg>
             </div>
             <div>
-              <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Aigis</h1>
+              <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">WIND</h1>
               <p className="text-sm text-zinc-600">{currentPageLabel}</p>
             </div>
           </div>

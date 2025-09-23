@@ -135,7 +135,7 @@ export default function FAQPage() {
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 animate-fade-in">
             <h1 className="text-5xl font-bold gradient-text animate-float mb-4">よくある質問</h1>
-            <p className="text-slate-600 text-lg">Aigisシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
+            <p className="text-slate-600 text-lg">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
           </div>
           <div className="text-center py-16 text-slate-600">
             <div className="inline-flex items-center gap-3">
@@ -153,7 +153,7 @@ export default function FAQPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8 animate-fade-in">
           <h1 className="text-5xl font-bold gradient-text animate-float mb-4">よくある質問</h1>
-          <p className="text-slate-600 text-lg">Aigisシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
+          <p className="text-slate-600 text-lg">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
         </div>
 
         {error && (
@@ -262,7 +262,7 @@ export default function FAQPage() {
               </div>
               <div>
                 <h2 className="text-3xl font-bold gradient-text">システム関連FAQ</h2>
-                <p className="text-slate-600">Aigisシステムの一般的な質問と回答です。</p>
+                <p className="text-slate-600">WINDシステムの一般的な質問と回答です。</p>
               </div>
             </div>
           </div>

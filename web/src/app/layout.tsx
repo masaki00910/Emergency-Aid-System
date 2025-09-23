@@ -2,7 +2,7 @@ import './globals.css'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Aigis - Emergency Response System',
+  title: 'WIND - Emergency Response System',
   description: 'AI駆動型緊急対応システム - リアルタイム災害情報ダッシュボード',
 }
 
