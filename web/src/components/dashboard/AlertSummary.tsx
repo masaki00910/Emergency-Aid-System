@@ -10,20 +10,20 @@ type ModernStatProps = {
 
 function ModernStatCard({ title, value, icon, description, gradient, iconBg }: ModernStatProps) {
   return (
-    <div className={`rounded-2xl border border-slate-200 bg-gradient-to-br ${gradient} p-6 shadow-lg hover:shadow-xl transition-all duration-300`}>
+    <div className={`rounded-3xl glass-effect bg-gradient-to-br ${gradient} p-8 shadow-2xl card-hover border-0`}>
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-3">
-            <div className={`inline-flex items-center justify-center w-12 h-12 rounded-xl ${iconBg} shadow-lg`}>
-              <span className="text-xl">{icon}</span>
+            <div className={`inline-flex items-center justify-center w-16 h-16 rounded-2xl ${iconBg} shadow-xl`}>
+              <span className="text-2xl">{icon}</span>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+              <h3 className="text-xl font-bold gradient-text">{title}</h3>
             </div>
           </div>
           
-          <div className="mb-3">
-            <div className="text-4xl font-black text-slate-900 leading-none">
+          <div className="mb-4">
+            <div className="text-5xl font-black bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent leading-none">
               {value.toLocaleString()}
             </div>
           </div>

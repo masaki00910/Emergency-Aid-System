@@ -2,8 +2,8 @@ import './globals.css'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Disaster Response System',
-  description: 'リアルタイム災害情報ダッシュボード',
+  title: 'Aigis - Emergency Response System',
+  description: 'AI駆動型緊急対応システム - リアルタイム災害情報ダッシュボード',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
