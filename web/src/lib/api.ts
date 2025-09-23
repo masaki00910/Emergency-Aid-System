@@ -4,7 +4,6 @@ import type { Incident } from '@/types/incident'
 import type { Alert } from '@/types/alert'
 import type { FeedItem } from '@/types/feed'
 import type { AIFAQResponse, AIGeneratedFAQ } from '@/types/ai-faq'
-// import { mockIncidents, mockAlerts, mockFeeds } from '@/mocks/data'
 
 // Re-export types for convenience
 export type { Incident, Alert, FeedItem, AIFAQResponse, AIGeneratedFAQ }
@@ -160,117 +159,68 @@ export class ApiService {
     }
   }
 
-  // AI FAQ API
+  // AI FAQ API - Real implementation using backend FAQ service
   static async getAIFAQByAlert(alertId: string): Promise<AIFAQResponse | null> {
     try {
-      // 実際にはバックエンドAIサービスで生成されたFAQを取得
-      // ここではMockデータで代替
-      return this.getMockAIFAQ(alertId)
+      const response = await fetch(`/api/faq/${alertId}`)
+      if (!response.ok) {
+        console.error('Failed to fetch FAQ from backend API')
+        return null
+      }
+      const data = await response.json()
+      return data
     } catch (error) {
       console.error('Error fetching AI FAQ:', error)
-      throw error
+      return null
     }
   }
 
   static async getActiveFAQs(): Promise<AIFAQResponse[]> {
     try {
-      // 現在アクティブなすべてのAlertに対するFAQを取得
-      const activeAlerts = await this.getAlerts(true)
-      const faqs: AIFAQResponse[] = []
-
-      for (const alert of activeAlerts) {
-        const faq = await this.getAIFAQByAlert(alert.id)
-        if (faq) {
-          faqs.push(faq)
-        }
+      const response = await fetch('/api/faq/active')
+      if (!response.ok) {
+        console.error('Failed to fetch active FAQs')
+        return []
       }
-
-      return faqs
+      const data = await response.json()
+      return data
     } catch (error) {
       console.error('Error fetching active FAQs:', error)
-      throw error
+      return []
     }
   }
 
-  // Mockデータ（バックエンドAPI準備まで使用）
-  static getMockAIFAQ(alertId: string): AIFAQResponse | null {
-    const mockFAQs: Record<string, AIFAQResponse> = {
-      'alrt-001': {
-        alertId: 'alrt-001',
-        alertTitle: '地震警報（関東地域）',
-        hazardType: 'earthquake',
-        area: '関東地域',
-        faqs: [
-          {
-            id: 'faq-ai-001',
-            alertId: 'alrt-001',
-            hazardType: 'earthquake',
-            category: 'action_guide',
-            question: '地震発生時に最初にすべき行動は？',
-            answer: 'まず安全な場所に身を隠してください。机の下や頑丈な家具の下に入って頭を保護し、出入口で落下する可能性のある物から離れてください。動かずに揺れが止まるまで待ってください。',
-            priority: 1,
-            generatedAt: Date.now(),
-            isRelevant: true
-          },
-          {
-            id: 'faq-ai-002',
-            alertId: 'alrt-001',
-            hazardType: 'earthquake',
-            category: 'evacuation',
-            question: '地震後避難する際の注意事項は？',
-            answer: '建物から出る際はエレベーターを絶対に使わず階段を利用してください。ガスバルブを閉め電気ブレーカーを下げた後、安全な避難場所に移動してください。ガラス窓や看板の近くは避け、頭を保護しながら移動してください。',
-            priority: 2,
-            generatedAt: Date.now(),
-            isRelevant: true
-          },
-          {
-            id: 'faq-ai-003',
-            alertId: 'alrt-001',
-            hazardType: 'earthquake',
-            category: 'safety_tips',
-            question: '地震に備えて普段準備すべきものは？',
-            answer: '非常用品を事前に準備してください：水（1人当たり1日3リットル）、非常食、懐中電灯、ラジオ、救急薬品、現金、重要書類のコピーなどを非常用リュックに準備してください。家族の連絡先と避難場所を事前に決めておくことも重要です。',
-            priority: 3,
-            generatedAt: Date.now(),
-            isRelevant: true
-          }
-        ],
-        lastUpdated: Date.now()
-      },
-      'alrt-002': {
-        alertId: 'alrt-002',
-        alertTitle: '洪水注意報（東京23区）',
-        hazardType: 'flood',
-        area: '東京23区',
-        faqs: [
-          {
-            id: 'faq-ai-004',
-            alertId: 'alrt-002',
-            hazardType: 'flood',
-            category: 'action_guide',
-            question: '洪水警報発令時にすべきことは？',
-            answer: '直ちに高い場所に避難してください。地下室や地下空間にいる場合は直ちに出てください。水が膝の高さに達する前に避難を完了しなければなりません。ラジオや災害通知で最新情報を確認してください。',
-            priority: 1,
-            generatedAt: Date.now(),
-            isRelevant: true
-          },
-          {
-            id: 'faq-ai-005',
-            alertId: 'alrt-002',
-            hazardType: 'flood',
-            category: 'safety_tips',
-            question: '洪水時に水に落ちたときの対処法は？',
-            answer: '慌てずに体力を保存してください。背中を付けて浮き呼吸を維持し、流れに逆らわずに斜めに泳いで端に移動してください。周りの浮遊物を利用して浮力を確保してください。',
-            priority: 2,
-            generatedAt: Date.now(),
-            isRelevant: true
-          }
-        ],
-        lastUpdated: Date.now()
-      }
-    }
 
-    return mockFAQs[alertId] || null
+  static async getFAQsByIncident(incidentId: string): Promise<AIGeneratedFAQ[]> {
+    try {
+      const faqResponse = await this.getAIFAQByAlert(incidentId)
+      return faqResponse?.faqs || []
+    } catch (error) {
+      console.error('Error fetching FAQs for incident:', error)
+      return []
+    }
+  }
+
+  static async askFAQQuestion(incidentId: string, question: string): Promise<string> {
+    try {
+      const response = await fetch(`/api/faq/${incidentId}/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get answer from FAQ API')
+      }
+
+      const data = await response.json()
+      return data.answer || 'No answer received'
+    } catch (error) {
+      console.error('Error asking FAQ question:', error)
+      throw error
+    }
   }
 }
 
@@ -346,7 +296,7 @@ export class RestApiService {
 
   static async getIncidents(since?: number): Promise<Incident[]> {
     try {
-      const response = await fetch(`/api/public/disasters`)
+      const response = await fetch(`/api/disasters`)
       if (!response.ok) {
         console.error('Failed to fetch disasters from API')
         return []
@@ -376,7 +326,7 @@ export class RestApiService {
 
   static async getIncident(id: string): Promise<Incident | null> {
     try {
-      const response = await fetch(`/api/public/disasters/${id}`)
+      const response = await fetch(`/api/disasters/${id}`)
       if (!response.ok) return null
       const disaster = await response.json()
       return this.transformDisasterToIncident(disaster)
@@ -438,7 +388,7 @@ export class RestApiService {
 
   static async getAlerts(activeOnly: boolean = false): Promise<Alert[]> {
     try {
-      const response = await fetch(`/api/public/disasters`)
+      const response = await fetch(`/api/disasters`)
       if (!response.ok) {
         console.error('Failed to fetch disasters for alerts')
         return []
@@ -466,7 +416,7 @@ export class RestApiService {
 
   static async getAlert(id: string): Promise<Alert | null> {
     try {
-      const response = await fetch(`/api/public/disasters/${id}`)
+      const response = await fetch(`/api/disasters/${id}`)
       if (!response.ok) return null
       const disaster = await response.json()
       return this.transformDisasterToAlert(disaster)
@@ -479,7 +429,7 @@ export class RestApiService {
   static async getFeeds(limitCount: number = 50): Promise<FeedItem[]> {
     try {
       // Since there's no feed endpoint, create feeds from disaster evidence
-      const response = await fetch(`/api/public/disasters`)
+      const response = await fetch(`/api/disasters`)
       if (!response.ok) {
         console.error('Failed to fetch disasters for feeds')
         return []
@@ -535,28 +485,66 @@ export class RestApiService {
     }
   }
 
-  // AI FAQ API - Mock implementation since not available in current API
+  // AI FAQ API - Real implementation using backend FAQ service
   static async getAIFAQByAlert(alertId: string): Promise<AIFAQResponse | null> {
-    // Use the mock implementation from ApiService
-    return ApiService.getMockAIFAQ(alertId)
+    try {
+      const response = await fetch(`/api/faq/${alertId}`)
+      if (!response.ok) {
+        console.error('Failed to fetch FAQ from backend API')
+        return null
+      }
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching AI FAQ:', error)
+      return null
+    }
   }
 
   static async getActiveFAQs(): Promise<AIFAQResponse[]> {
     try {
-      const activeAlerts = await this.getAlerts(true)
-      const faqs: AIFAQResponse[] = []
-
-      for (const alert of activeAlerts) {
-        const faq = await this.getAIFAQByAlert(alert.id)
-        if (faq) {
-          faqs.push(faq)
-        }
+      const response = await fetch('/api/faq/active')
+      if (!response.ok) {
+        console.error('Failed to fetch active FAQs')
+        return []
       }
-
-      return faqs
+      const data = await response.json()
+      return data
     } catch (error) {
       console.error('Error fetching active FAQs:', error)
       return []
+    }
+  }
+
+  static async getFAQsByIncident(incidentId: string): Promise<AIGeneratedFAQ[]> {
+    try {
+      const faqResponse = await this.getAIFAQByAlert(incidentId)
+      return faqResponse?.faqs || []
+    } catch (error) {
+      console.error('Error fetching FAQs for incident:', error)
+      return []
+    }
+  }
+
+  static async askFAQQuestion(incidentId: string, question: string): Promise<string> {
+    try {
+      const response = await fetch(`/api/faq/${incidentId}/ask`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ question }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to get answer from FAQ API')
+      }
+
+      const data = await response.json()
+      return data.answer || 'No answer received'
+    } catch (error) {
+      console.error('Error asking FAQ question:', error)
+      throw error
     }
   }
 }

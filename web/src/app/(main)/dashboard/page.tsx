@@ -122,7 +122,7 @@ export default function DashboardPage() {
             <div className="rounded-3xl glass-effect shadow-2xl text-zinc-900 overflow-hidden card-hover border-0">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-100 px-6 py-4">
                 <h2 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
-                  📍 最近のインシデント
+                  📍 最新フィード
                 </h2>
               </div>
 

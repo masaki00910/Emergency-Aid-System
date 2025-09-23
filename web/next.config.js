@@ -10,8 +10,8 @@ const nextConfig = {
   output: 'standalone',
   // ビルド最適化
   experimental: {
-    // メモリ使用量を削減
-    webpackMemoryOptimizations: true,
+    // Next.js 14では不要になった設定をコメントアウト
+    // webpackMemoryOptimizations: true,
   },
   // 画像最適化を無効化（ビルド時間短縮）
   images: {

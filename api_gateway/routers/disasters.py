@@ -213,7 +213,7 @@ async def get_firestore_debug():
         db = disaster_service.db
         
         # 全件数確認
-        all_disasters = list(db.collection('disasters').limit(10).stream())
+        all_disasters = list(db.collection('incidents').limit(10).stream())
         
         debug_info = {
             "total_documents_sampled": len(all_disasters),
@@ -235,7 +235,7 @@ async def get_firestore_debug():
             debug_info["sample_documents"].append(sample_doc)
         
         # フィルタなしクエリのテスト
-        unfiltered_disasters = list(db.collection('disasters').limit(5).stream())
+        unfiltered_disasters = list(db.collection('incidents').limit(5).stream())
         debug_info["unfiltered_count"] = len(unfiltered_disasters)
         
         return debug_info

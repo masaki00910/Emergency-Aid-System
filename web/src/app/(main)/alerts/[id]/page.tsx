@@ -141,8 +141,18 @@ export default function AlertDetailPage() {
 
           // Fetch contextual FAQs for this specific alert/incident
           try {
-            const faq = await API.getFAQsByIncident(alertId)
-            setAlertFAQ(faq)
+            const faqs = await API.getFAQsByIncident(alertId)
+            if (faqs.length > 0) {
+              // Create AIFAQResponse structure that the component expects
+              setAlertFAQ({
+                alertId: alertId,
+                alertTitle: foundAlert.title,
+                hazardType: foundAlert.hazard,
+                area: foundAlert.area,
+                faqs: faqs,
+                lastUpdated: Date.now()
+              })
+            }
           } catch (error) {
             console.warn('Failed to fetch FAQs for incident:', error)
           }
@@ -486,7 +496,7 @@ export default function AlertDetailPage() {
                 </div>
                 
                 <div className="space-y-3">
-                  {alertFAQ.faqs
+                  {(alertFAQ.faqs || [])
                     .sort((a, b) => a.priority - b.priority)
                     .map(faq => (
                       <div key={faq.id} className="bg-white rounded-lg border border-blue-200 overflow-hidden">
