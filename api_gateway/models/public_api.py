@@ -67,3 +67,30 @@ class SubscriptionSettings(BaseModel):
     prefectures: Optional[List[str]] = Field(None, description="監視する都道府県")
     min_severity: Optional[str] = Field(None, description="最小重要度")
     disaster_types: Optional[List[str]] = Field(None, description="監視する災害種別")
+
+# FAQ関連モデル
+class FAQModel(BaseModel):
+    id: str = Field(description="FAQ ID")
+    disaster_id: str = Field(description="関連災害ID")
+    question: str = Field(description="質問文")
+    answer: str = Field(description="回答文")
+    category: str = Field(description="カテゴリ")
+    priority: int = Field(description="優先度")
+    created_at: datetime = Field(description="作成日時")
+
+class FAQResponse(BaseModel):
+    disaster_id: str = Field(description="災害ID")
+    disaster_title: str = Field(description="災害タイトル")
+    hazard_type: str = Field(description="災害種別")
+    area: str = Field(description="地域")
+    faqs: List[FAQModel] = Field(description="FAQ一覧")
+    last_updated: datetime = Field(description="最終更新日時")
+
+class FAQQuestionRequest(BaseModel):
+    question: str = Field(description="ユーザーの質問")
+
+class FAQAnswerResponse(BaseModel):
+    question: str = Field(description="質問文")
+    answer: str = Field(description="AI回答")
+    timestamp: datetime = Field(description="回答時刻")
+    model_used: str = Field(description="使用したAIモデル")

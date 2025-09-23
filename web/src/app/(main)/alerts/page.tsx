@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { API } from '@/lib/api'
 import type { Alert } from '@/types/alert'
 import type { Incident } from '@/types/incident'
+import type { FeedItem } from '@/types/feed'
 
 type AlertLevel = 'Active' | 'non-Active' | 'all'
 type AlertTag = 'flood' | 'earthquake' | 'landslide' | 'typhoon' | 'tsunami' | 'other' | 'all'
@@ -17,18 +18,41 @@ export default function AlertsPage() {
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
+  const [feeds, setFeeds] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [alertsData, incidentsData] = await Promise.all([
-          API.getAlerts(),
-          API.getIncidents()
+        const [alertsData, incidentsData, feedsData] = await Promise.all([
+          API.getAlerts(true), // active alerts only - same as dashboard
+          API.getIncidents(),
+          API.getFeeds(50)
         ])
-        setAlerts(alertsData)
+        
+        // Filter for 24 hours only - same as dashboard
+        const now = Date.now()
+        const twentyFourHoursAgo = now - (24 * 60 * 60 * 1000)
+
+        // Filter alerts for last 24 hours AND active status - same as dashboard
+        const recentActiveAlerts = alertsData.filter(alert => {
+          const alertTime = alert.startedAt
+          return alertTime >= twentyFourHoursAgo
+        })
+        
+        // Filter feeds for last 24 hours - same as dashboard
+        const recentFeeds = feedsData.filter(feed => {
+          const feedTime = typeof feed.publishedAt === 'string' 
+            ? new Date(feed.publishedAt).getTime() 
+            : feed.publishedAt
+          return feedTime >= twentyFourHoursAgo
+        })
+
+        setAlerts(recentActiveAlerts)
         setIncidents(incidentsData)
+        // Store feeds for Events Today count
+        setFeeds(recentFeeds)
       } catch (error) {
         console.error('Failed to fetch alerts data:', error)
       } finally {
@@ -61,20 +85,36 @@ export default function AlertsPage() {
   }
 
   // Use incidents as the primary source since alerts are derived from incidents
-  const allAlerts = incidents.map(incident => ({
-    id: incident.id,
-    title: incident.title,
-    area: incident.location?.admin || '不明',
-    hazard: incident.type,
-    severity: incident.severity,
-    startedAt: incident.reported_at ? new Date(incident.reported_at).getTime() : Date.now(),
-    description: incident.description,
-    region: getRegionFromArea(incident.location?.admin || ''),
-    // More sophisticated active determination based on status and severity
-    active: incident.status === 'active' ||
-           (incident.severity === 'high' && incident.status !== 'resolved') ||
-           (incident.reported_at ? (Date.now() - new Date(incident.reported_at).getTime()) < 12 * 60 * 60 * 1000 : false) // 12 hours instead of 24
-  }))
+  const allAlerts = incidents.map(incident => {
+    // Use same hazard mapping as cards for consistent active determination
+    const hazardMapping = {
+      'earthquake': {name: '地震', icon: '🌍'},
+      'tsunami': {name: '津波', icon: '🌊'}, 
+      'flood': {name: '洪水', icon: '💧'},
+      'typhoon': {name: '台風', icon: '🌀'},
+      'landslide': {name: '土砂災害', icon: '⛰️'},
+      'volcano': {name: '火山', icon: '🌋'},
+      'wildfire': {name: '山火事', icon: '🔥'},
+      'other': {name: 'その他', icon: '⚠️'}
+    }
+    const hazardInfo = hazardMapping[incident.type] || hazardMapping['other']
+    
+    // Use EXACT same active condition as card display
+    const isActive = incident.status === 'active' || incident.is_active === true
+    const active = isActive && incident.severity !== 'low' && hazardInfo.name !== 'その他' && hazardInfo.name !== ''
+    
+    return {
+      id: incident.id,
+      title: incident.title,
+      area: incident.location?.admin || '不明',
+      hazard: incident.type,
+      severity: incident.severity,
+      startedAt: incident.reported_at ? new Date(incident.reported_at).getTime() : Date.now(),
+      description: incident.description,
+      region: getRegionFromArea(incident.location?.admin || ''),
+      active: active
+    }
+  })
 
   // フィルタリング
   const filteredAlerts = allAlerts.filter(alert => {
@@ -93,12 +133,9 @@ export default function AlertsPage() {
     return levelMatch && tagMatch && regionMatch && searchMatch
   })
 
-  const activeCount = allAlerts.filter(a => a.active === true).length
-  const todayCount = allAlerts.filter(a => {
-    if (!a.startedAt) return false
-    const today = new Date().toDateString()
-    return new Date(a.startedAt).toDateString() === today
-  }).length
+  // Use same count logic as dashboard
+  const activeCount = alerts.length // alerts are already filtered for 24h and active status
+  const todayCount = feeds.length // feeds are already filtered for 24h
 
   const getSeverityColor = (severity?: string) => {
     switch(severity) {
@@ -223,7 +260,7 @@ export default function AlertsPage() {
               }`}
               onClick={() => setSelectedLevel('Active')}
             >
-              🔴 Activeのみ
+              🚨 Activeのみ
             </button>
             <button
               className={`flex-1 px-4 py-2 rounded-md transition-all ${
@@ -231,7 +268,7 @@ export default function AlertsPage() {
               }`}
               onClick={() => setSelectedLevel('non-Active')}
             >
-              ⚪ non-Activeのみ
+              🔵 non-Activeのみ
             </button>
           </div>
         </div>
@@ -266,52 +303,66 @@ export default function AlertsPage() {
             filteredAlerts.map((alert, index) => (
             <Link key={alert.id} href={`/alerts/${alert.id}`}>
               <div
-                className={`rounded-xl border-2 p-4 cursor-pointer hover:shadow-lg transition-shadow ${getSeverityColor(alert.severity)}`}
+                className="rounded-xl border border-slate-200 p-4 bg-white hover:bg-slate-50 hover:shadow-md transition-all duration-300 cursor-pointer"
               >
                 <div className="flex items-start gap-4">
-                  <div className="text-3xl">{getHazardIcon(alert.hazard)}</div>
-                  
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                        alert.active ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'
-                      }`}>
-                        {alert.active ? 'Active' : 'non-Active'}
-                      </span>
-                      <div className="flex gap-1">
-                        {alert.hazard && (
-                          <span className={`px-2 py-1 rounded text-xs ${getTagColor(alert.hazard)}`}>
-                            {getHazardDisplayName(alert.hazard)}
+                  {/* Get hazard info for consistent styling - same as dashboard */}
+                  {(() => {
+                    const hazardMapping = {
+                      'earthquake': {name: '地震', icon: '🌍'},
+                      'tsunami': {name: '津波', icon: '🌊'}, 
+                      'flood': {name: '洪水', icon: '💧'},
+                      'typhoon': {name: '台風', icon: '🌀'},
+                      'landslide': {name: '土砂災害', icon: '⛰️'},
+                      'volcano': {name: '火山', icon: '🌋'},
+                      'wildfire': {name: '山火事', icon: '🔥'},
+                      'other': {name: 'その他', icon: '⚠️'}
+                    }
+                    const hazardInfo = hazardMapping[alert.hazard] || hazardMapping['other']
+                    
+                    return (
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 text-sm text-slate-600 mb-3">
+                          <span className="text-lg">{hazardInfo.icon}</span>
+                          <span className="font-medium">{alert.area}</span>
+                        </div>
+                        
+                        <div className="font-semibold text-slate-900 text-base leading-snug mb-3">
+                          {alert.title}
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-slate-100 to-slate-200 px-3 py-1 text-xs font-medium text-slate-700 shadow-sm">
+                            🏷️ {hazardInfo.name}
                           </span>
-                        )}
-                        {['特別警報', '警報', '注意報'].map((tag, i) => {
-                          if (Math.random() > 0.6) {
-                            return (
-                              <span key={i} className="px-2 py-1 rounded text-xs bg-orange-100 text-orange-800">
-                                {tag}
-                              </span>
-                            )
-                          }
-                          return null
-                        })}
+                          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium shadow-sm ${
+                            alert.severity === 'high' 
+                              ? 'bg-gradient-to-r from-red-100 to-red-200 text-red-800' 
+                              : alert.severity === 'medium'
+                              ? 'bg-gradient-to-r from-amber-100 to-amber-200 text-amber-800'
+                              : 'bg-gradient-to-r from-blue-100 to-blue-200 text-blue-800'
+                          }`}>
+                            📊 深刻度：{alert.severity === 'high' ? '高' : alert.severity === 'medium' ? '中' : '低'}
+                          </span>
+                          {alert.active && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-red-500 to-red-600 px-3 py-1 text-xs font-medium text-white shadow-md">
+                              🚨 アクティブ
+                            </span>
+                          )}
+                        </div>
+                        
+                        <div className="text-xs text-slate-500 flex items-center gap-1">
+                          🕒 {(() => {
+                            const timestamp = alert.startedAt
+                            const diff = Math.max(1, Math.round((Date.now() - timestamp) / 60000))
+                            if (diff < 60) return `${diff}分前`
+                            const h = Math.round(diff / 60)
+                            return `${h}時間前`
+                          })()}
+                        </div>
                       </div>
-                    </div>
-                    
-                    <div className="font-semibold text-lg mb-1">{alert.title}</div>
-                    
-                    <div className="text-sm text-gray-600 mb-2">
-                      <div>{alert.area}県・{alert.area}地域・{alert.area}市</div>
-                      <div>詳細を見る →</div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs text-gray-500">
-                        ソース：{['気象庁', 'NHK', '消防庁'][index % 3]} | 
-                        アラート発生：{alert.startedAt ? new Date(alert.startedAt).toLocaleString('ja-JP') : '-'} | 
-                        最終更新：{alert.startedAt ? new Date(alert.startedAt).toLocaleString('ja-JP') : '-'}
-                      </div>
-                    </div>
-                  </div>
+                    )
+                  })()}
                 </div>
               </div>
             </Link>

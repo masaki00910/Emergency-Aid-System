@@ -11,7 +11,8 @@ from fastapi.responses import JSONResponse
 
 from pr_agent import PRAgent
 from shared.models.disaster import AgentTask
-
+from faq_generator import FAQGeneratorAgent
+from google.cloud import firestore
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -117,6 +118,79 @@ async def get_latest_bulletins(limit: int = 10):
         logger.error(f"Failed to get latest bulletins: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+faq_db = firestore.Client()  # Firestore クライアント
+faq_agent = FAQGeneratorAgent()
+
+def save_faq_and_chats(event_id: str, faqs: list, user_interactions: list | None = None):
+    """FAQ と初期のユーザ対話（通常は空）を 1 ドキュメントにまとめて保存"""
+    doc_ref = faq_db.collection("faq_chat_logs").document(event_id)
+    data = {
+        "faqs": faqs,
+        "user_interactions": user_interactions or [],
+        "created_at": datetime.utcnow().isoformat()
+    }
+    doc_ref.set(data)
+    logger.info(f"FAQとチャット（初期）を保存しました: {doc_ref.id}")
+
+def add_user_interaction(event_id: str, user_input: str, answer: str):
+    """既存ドキュメントにユーザの質問＆回答を追加"""
+    doc_ref = faq_db.collection("faq_chat_logs").document(event_id)
+    new_entry = {
+        "user_input": user_input,
+        "answer": answer,
+        "timestamp": datetime.utcnow().isoformat()
+    }
+    try:
+        doc_ref.update({"user_interactions": firestore.ArrayUnion([new_entry])})
+        logger.info(f"ユーザ質問を追加しました: {doc_ref.id}")
+    except Exception as e:
+        # ドキュメントが無い場合は新規作成
+        doc_ref.set({
+            "faqs": [],
+            "user_interactions": [new_entry],
+            "created_at": datetime.utcnow().isoformat()
+        })
+        logger.info(f"ドキュメントが無かったため新規作成して追加しました: {doc_ref.id}")
+
+@app.post("/faq-generate")
+async def generate_faq(request: Request):
+    """
+    FAQGeneratorAgent を呼び出してユーザ対話＋Firestore保存を行う
+    """
+    try:
+        data = await request.json()
+        event_id = data.get("event_id", "test-event")
+        user_question = data.get("question", "")
+
+        if not user_question:
+            raise HTTPException(status_code=400, detail="Missing 'question' field")
+
+        # =========================
+        # FAQ生成
+        faqs_result = await faq_agent.process(AgentTask(
+            task_id=f"faq-{datetime.utcnow().timestamp()}",
+            event_id=event_id,
+            agent="faq_generator",
+            payload={"content": user_question},
+            created_at=datetime.utcnow()
+        ))
+        faqs = faqs_result.result.get("faqs", [])
+
+        # Firestoreに初期保存（user_interactions は空）
+        save_faq_and_chats(event_id, faqs)
+
+        # Vertex AI を使ってユーザ質問に回答
+        answer = await faq_agent.vertex_ai_client.answer_with_faq(faqs, user_question)
+
+        # Firestore にユーザ質問と回答を追加
+        add_user_interaction(event_id, user_question, answer)
+        # =========================
+
+        return {"question": user_question, "answer": answer, "faqs": faqs}
+
+    except Exception as e:
+        logger.error(f"FAQ generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

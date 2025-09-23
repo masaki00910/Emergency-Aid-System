@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, memo } from 'react'
 import { Loader } from '@googlemaps/js-api-loader'
 import type { Incident } from '@/types/incident'
 
@@ -19,7 +19,7 @@ type Props = {
   focusIncidentId?: string
 }
 
-export default function IncidentMap({ incidents, center, zoom = 7, onCountsChange, onSelect, focusIncidentId }: Props) {
+function IncidentMap({ incidents, center, zoom = 7, onCountsChange, onSelect, focusIncidentId }: Props) {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapObj = useRef<any>(null)
   const markers = useRef<{ marker: any; isActive: boolean; incident: Incident }[]>([])
@@ -56,21 +56,51 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
   }
 
   useEffect(() => {
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+    
+    if (!apiKey) {
+      console.error('Google Maps API key is missing. Please check NEXT_PUBLIC_GOOGLE_MAPS_API_KEY environment variable.')
+      return
+    }
+
     const loader = new Loader({
-      apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
+      apiKey: apiKey,
       version: 'weekly',
+      libraries: ['maps', 'marker']
     })
+    
     let mounted = true
-    loader.load().then(() => {
-      if (!mounted || !mapRef.current || !window.google) return
-      mapObj.current = new window.google.maps.Map(mapRef.current, {
-        center: mapCenter, zoom,
-        mapTypeControl: false, fullscreenControl: false, streetViewControl: false,
+    
+    loader.load()
+      .then(() => {
+        if (!mounted || !mapRef.current || !window.google?.maps) {
+          console.warn('Google Maps: Component unmounted or API not available')
+          return
+        }
+        
+        mapObj.current = new window.google.maps.Map(mapRef.current, {
+          center: mapCenter, 
+          zoom,
+          mapTypeControl: false, 
+          fullscreenControl: false, 
+          streetViewControl: false,
+        })
+        
+        mapObj.current.addListener('idle', recalcCountsInViewport)
+        infoRef.current = new window.google.maps.InfoWindow()
+        setMapReady(true)
+        console.log('Google Maps loaded successfully')
       })
-      mapObj.current.addListener('idle', recalcCountsInViewport)
-      infoRef.current = new window.google.maps.InfoWindow()
-      setMapReady(true)
-    })
+      .catch((error) => {
+        console.error('Google Maps failed to load:', error)
+        console.error('Error type:', error.name)
+        console.error('Error message:', error.message)
+        console.error('Please check:')
+        console.error('1. API key is valid and has access to Maps JavaScript API')
+        console.error('2. Billing is enabled for your Google Cloud project')
+        console.error('3. Maps JavaScript API is enabled in Google Cloud Console')
+      })
+    
     return () => {
       mounted = false
       markers.current.forEach(m => m.marker.setMap(null))
@@ -79,14 +109,16 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
   }, [mapCenter, zoom])
 
   useEffect(() => {
-    if (!mapReady || !mapObj.current) return
+    if (!mapReady || !mapObj.current) {
+      return
+    }
+    
     markers.current.forEach(m => m.marker.setMap(null))
     markers.current = []
 
     incidents.forEach(i => {
       // Skip incidents without valid location data
       if (!i.location || typeof i.location.lat !== 'number' || typeof i.location.lng !== 'number') {
-        console.warn('Skipping incident with invalid location:', i.id, i.location)
         return
       }
       
@@ -104,12 +136,18 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
       const hazardInfo = hazardMapping[i.type] || hazardMapping['other']
       const active = Boolean(i.is_active && i.severity !== 'low' && hazardInfo.name !== 'その他' && hazardInfo.name !== '')
       
+      const iconConfig = markerIcon(active)
+      
       const m = new window.google.maps.Marker({
         position: { lat: i.location.lat, lng: i.location.lng },
-        map: mapObj.current!,
         title: i.title,
-        icon: markerIcon(active),
+        icon: iconConfig,
       })
+      
+      // Explicitly set the map after marker creation
+      m.setMap(mapObj.current)
+      
+      
       m.addListener('click', () => {
         onSelect?.(i)
         if (!infoRef.current) return
@@ -191,3 +229,22 @@ export default function IncidentMap({ incidents, center, zoom = 7, onCountsChang
     </div>
   )
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export default memo(IncidentMap, (prevProps, nextProps) => {
+  // Deep comparison for incidents array
+  if (prevProps.incidents.length !== nextProps.incidents.length) return false
+  
+  for (let i = 0; i < prevProps.incidents.length; i++) {
+    if (prevProps.incidents[i].id !== nextProps.incidents[i].id) return false
+    if (prevProps.incidents[i].is_active !== nextProps.incidents[i].is_active) return false
+  }
+  
+  // Compare other props
+  return (
+    prevProps.center?.lat === nextProps.center?.lat &&
+    prevProps.center?.lng === nextProps.center?.lng &&
+    prevProps.zoom === nextProps.zoom &&
+    prevProps.focusIncidentId === nextProps.focusIncidentId
+  )
+})

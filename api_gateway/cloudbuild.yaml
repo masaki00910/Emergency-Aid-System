@@ -1,0 +1,30 @@
+steps:
+# Build the container image
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', 'gcr.io/$PROJECT_ID/disaster-api:latest', '.']
+  dir: '/workspace/api_gateway'
+
+# Push the container image to Container Registry
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', 'gcr.io/$PROJECT_ID/disaster-api:latest']
+
+# Deploy container image to Cloud Run
+- name: 'gcr.io/cloud-builders/gcloud'
+  args: 
+  - 'run'
+  - 'deploy'
+  - 'disaster-api'
+  - '--image'
+  - 'gcr.io/$PROJECT_ID/disaster-api:latest'
+  - '--region'
+  - 'asia-northeast1'
+  - '--platform'
+  - 'managed'
+  - '--allow-unauthenticated'
+  - '--port'
+  - '8082'
+  - '--set-env-vars'
+  - 'GOOGLE_CLOUD_PROJECT=$PROJECT_ID,USE_MOCK_LLM=false'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
