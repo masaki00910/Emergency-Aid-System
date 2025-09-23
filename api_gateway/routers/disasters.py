@@ -2,8 +2,8 @@ from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from datetime import datetime
 
-from ..models.public_api import DisasterResponse, DisasterModel, MapDataResponse, MapMarker, MapBounds
-from ..services.disaster_service import DisasterService
+from models.public_api import DisasterResponse, DisasterModel, MapDataResponse, MapMarker, MapBounds
+from services.disaster_service import DisasterService
 
 router = APIRouter()
 disaster_service = DisasterService()
@@ -23,6 +23,7 @@ async def get_disasters(
     # 時間範囲
     since: Optional[datetime] = Query(None, description="この時刻以降の災害"),
     until: Optional[datetime] = Query(None, description="この時刻以前の災害"),
+    recent_only: bool = Query(True, description="24時間以内のみ表示（パフォーマンス向上）"),
 
     # ソート
     sort_by: str = Query("detected_at", description="ソート項目"),
@@ -46,7 +47,8 @@ async def get_disasters(
             since=since,
             until=until,
             sort_by=sort_by,
-            order=order
+            order=order,
+            recent_only=recent_only
         )
 
         # フィルター情報
@@ -57,6 +59,7 @@ async def get_disasters(
             "is_active": is_active,
             "since": since.isoformat() if since else None,
             "until": until.isoformat() if until else None,
+            "recent_only": recent_only,
             "sort_by": sort_by,
             "order": order
         }
@@ -199,3 +202,43 @@ async def get_disaster_stats():
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"統計データ取得エラー: {str(e)}")
+
+@router.get("/disasters/debug")
+async def get_firestore_debug():
+    """
+    Firestoreデータ構造のデバッグ情報取得
+    """
+    try:
+        # 直接Firestoreからデータを取得してデバッグ
+        db = disaster_service.db
+        
+        # 全件数確認
+        all_disasters = list(db.collection('disasters').limit(10).stream())
+        
+        debug_info = {
+            "total_documents_sampled": len(all_disasters),
+            "sample_documents": []
+        }
+        
+        for i, doc in enumerate(all_disasters[:3]):
+            data = doc.to_dict()
+            sample_doc = {
+                "document_id": doc.id,
+                "keys": list(data.keys()),
+                "detected_at": str(data.get('detected_at', 'NOT_FOUND')),
+                "detected_at_type": str(type(data.get('detected_at', None))),
+                "created_at": str(data.get('created_at', 'NOT_FOUND')),
+                "timestamp": str(data.get('timestamp', 'NOT_FOUND')),
+                "has_detected_at_field": 'detected_at' in data,
+                "sample_data": {k: str(v)[:100] for k, v in data.items() if k in ['title', 'type', 'severity', 'is_active']}
+            }
+            debug_info["sample_documents"].append(sample_doc)
+        
+        # フィルタなしクエリのテスト
+        unfiltered_disasters = list(db.collection('disasters').limit(5).stream())
+        debug_info["unfiltered_count"] = len(unfiltered_disasters)
+        
+        return debug_info
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"デバッグ情報取得エラー: {str(e)}")

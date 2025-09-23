@@ -31,7 +31,7 @@ export default function MobileHeader({ onToggleSidebar }: MobileHeaderProps) {
             </svg>
           </button>
           <div>
-            <h1 className="text-lg font-semibold text-zinc-900">守り雲</h1>
+            <h1 className="text-lg font-semibold text-zinc-900">WIND</h1>
             <p className="text-sm text-zinc-600">{currentPageLabel}</p>
           </div>
         </div>
