@@ -24,39 +24,69 @@ export default function GoogleMap({ lat, lng, incidents, zoom = 12 }: Props) {
   const [mapReady, setMapReady] = useState(false)
 
   useEffect(() => {
-    const loader = new Loader({
-      apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
-      version: 'weekly',
-    })
-
-    let mounted = true
+    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
     
-    loader.load().then(() => {
-      if (!mounted || !mapRef.current) return
-      
-      mapObj.current = new google.maps.Map(mapRef.current, {
-        center: { lat, lng },
-        zoom,
-        mapTypeControl: false,
-        fullscreenControl: false,
-        streetViewControl: false,
-      })
-      
-      setMapReady(true)
-    }).catch(() => {
-      // Fallback if Google Maps fails to load
+    if (!apiKey) {
+      console.error('Google Maps API key is missing. Please check NEXT_PUBLIC_GOOGLE_MAPS_API_KEY environment variable.')
       if (mapRef.current) {
         mapRef.current.innerHTML = `
-          <div class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+          <div class="w-full h-full flex items-center justify-center bg-red-50 text-red-600 border border-red-200">
             <div class="text-center">
-              <div class="text-4xl mb-2">📍</div>
-              <div>地図を読み込めませんでした</div>
-              <div class="text-sm mt-1">位置: ${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
+              <div class="text-4xl mb-2">❌</div>
+              <div>Google Maps APIキーがありません</div>
+              <div class="text-sm mt-1">環境変数を確認してください</div>
             </div>
           </div>
         `
       }
+      return
+    }
+
+    const loader = new Loader({
+      apiKey: apiKey,
+      version: 'weekly',
+      libraries: ['maps', 'marker']
     })
+
+    let mounted = true
+    
+    loader.load()
+      .then(() => {
+        if (!mounted || !mapRef.current || !window.google?.maps) {
+          console.warn('Google Maps: Component unmounted or API not available')
+          return
+        }
+        
+        mapObj.current = new google.maps.Map(mapRef.current, {
+          center: { lat, lng },
+          zoom,
+          mapTypeControl: false,
+          fullscreenControl: false,
+          streetViewControl: false,
+        })
+        
+        setMapReady(true)
+        console.log('Google Maps loaded successfully')
+      })
+      .catch((error) => {
+        console.error('Google Maps failed to load:', error)
+        console.error('Error type:', error.name)
+        console.error('Error message:', error.message)
+        
+        // Enhanced fallback UI with error details
+        if (mapRef.current) {
+          mapRef.current.innerHTML = `
+            <div class="w-full h-full flex items-center justify-center bg-gray-100 text-gray-500">
+              <div class="text-center">
+                <div class="text-4xl mb-2">📍</div>
+                <div>地図を読み込めませんでした</div>
+                <div class="text-sm mt-1">位置: ${lat.toFixed(4)}, ${lng.toFixed(4)}</div>
+                <div class="text-xs mt-2 text-gray-400">API接続エラー: ${error.message}</div>
+              </div>
+            </div>
+          `
+        }
+      })
 
     return () => {
       mounted = false

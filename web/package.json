@@ -4,7 +4,7 @@
   "description": "Disaster Response System Frontend",
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "next build",
+    "build": "NODE_OPTIONS='--max-old-space-size=4096' next build",
     "start": "next start"
   },
   "dependencies": {

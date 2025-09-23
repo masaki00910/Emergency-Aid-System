@@ -85,7 +85,7 @@ class VertexAIClient:
             try:
                 logger.info("DEBUG: Creating VertexAI Pro client...")
                 self._llm_gemini_pro = VertexAI(
-                    model_name="gemini-1.5-pro",
+                    model_name="gemini-1.5-pro-002",
                     temperature=0.1,
                     max_output_tokens=8192,
                     project=self.project_id,
@@ -123,7 +123,7 @@ class VertexAIClient:
             try:
                 logger.info("DEBUG: Creating VertexAI Flash client...")
                 self._llm_gemini_flash = VertexAI(
-                    model_name="gemini-1.5-flash",
+                    model_name="gemini-1.5-flash-002",
                     temperature=0.1,
                     max_output_tokens=8192,
                     project=self.project_id,
@@ -336,6 +336,12 @@ JSON形式で回答してください:
         """
         FAQとユーザの質問を元に回答を生成
         """
+        if self.is_local_mode:
+            logger.info("DEBUG: Using local mode - delegating to mock client")
+            if self._mock_client is None:
+                self._mock_client = create_mock_vertex_ai_client(self.project_id, self.location)
+            return await self._mock_client.answer_with_faq(faqs, user_question)
+        
         faq_context = "\n".join([f"Q: {f['question']}\nA: {f['answer']}" for f in faqs])
 
         prompt = f"""
@@ -348,6 +354,20 @@ FAQ一覧:
 ユーザの質問:
 {user_question}
 
+回答要件:
+- 文字数は200文字以内に収めてください
+- 重要なポイントを3つ以内に絞って簡潔に答えてください
+- 必ず箇条書き形式（・記号）で回答してください
+- 各項目の間は改行で区切ってください
+- 専門用語は避け、わかりやすい言葉で説明してください
+
+回答例:
+最初の文章です。
+
+・一つ目のポイントです。
+・二つ目のポイントです。
+・三つ目のポイントです。
+
 回答:
 """
 
@@ -356,6 +376,57 @@ FAQ一覧:
             return response.strip()
         except Exception as e:
             logger.error(f"FAQ answer generation failed: {e}")
+            return "すみません、回答を生成できませんでした。"
+    
+    def answer_with_faq_sync(self, faqs: List[Dict[str, str]], user_question: str) -> str:
+        """
+        FAQとユーザの質問を元に回答を生成（同期版・最適化）
+        """
+        try:
+            import asyncio
+            # 既存のイベントループを使用（パフォーマンス改善）
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 既にイベントループが実行中の場合は新しいタスクとして実行
+                    import concurrent.futures
+                    import threading
+                    
+                    def run_in_thread():
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            return new_loop.run_until_complete(self.answer_with_faq(faqs, user_question))
+                        finally:
+                            new_loop.close()
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_in_thread)
+                        return future.result(timeout=30)  # 30秒タイムアウト
+                else:
+                    return loop.run_until_complete(self.answer_with_faq(faqs, user_question))
+            except RuntimeError:
+                # イベントループが存在しない場合
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(self.answer_with_faq(faqs, user_question))
+                    return result
+                finally:
+                    loop.close()
+        except Exception as e:
+            logger.error(f"Sync FAQ answer generation failed: {e}")
             return "すみません、回答を生成できませんでした。"        
 
-vertex_ai_client = VertexAIClient(os.getenv("GOOGLE_CLOUD_PROJECT", ""))
+# Vertex AIクライアントは遅延初期化
+vertex_ai_client = None
+
+def get_vertex_ai_client():
+    """Vertex AIクライアントの遅延初期化"""
+    global vertex_ai_client
+    if vertex_ai_client is None:
+        project_id = os.getenv("GOOGLE_CLOUD_PROJECT", "")
+        if not project_id:
+            raise ValueError("GOOGLE_CLOUD_PROJECT environment variable is required")
+        vertex_ai_client = VertexAIClient(project_id)
+    return vertex_ai_client

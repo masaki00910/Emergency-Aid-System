@@ -17,8 +17,8 @@ interface FAQItem {
 const faqData: FAQItem[] = [
   {
     id: '1',
-    question: '守り雲システムとは何ですか？',
-    answer: '守り雲は、AI技術を活用した災害対応支援システムです。リアルタイムで災害情報を収集・分析し、迅速な災害対応をサポートします。気象庁、NHK、SNSなどの情報源から自動的にデータを取得し、重要な情報を優先表示します。',
+    question: 'WINDシステムとは何ですか？',
+    answer: 'WINDは、「What I Need to Do（私がすべきこと）」の略で、AI技術を活用した災害対応支援システムです。リアルタイムで災害情報を収集・分析し、迅速な災害対応をサポートします。気象庁、NHK、SNSなどの情報源から自動的にデータを取得し、重要な情報を優先表示します。',
     category: 'system'
   },
   {
@@ -135,7 +135,7 @@ export default function FAQPage() {
         <div className="max-w-4xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold mb-2">よくある質問</h1>
-            <p className="text-zinc-600">守り雲システムに関してよくお寄せいただく質問と回答をまとめました。</p>
+            <p className="text-zinc-600">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
           </div>
           <LoadingSpinner size="lg" text="FAQを読み込み中..." />
         </div>
@@ -148,7 +148,7 @@ export default function FAQPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">よくある質問</h1>
-          <p className="text-zinc-600">守り雲システムに関してよくお寄せいただく質問と回答をまとめました。</p>
+          <p className="text-zinc-600">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
         </div>
 
         {error && (
@@ -245,7 +245,7 @@ export default function FAQPage() {
         <div>
           <div className="mb-6">
             <h2 className="text-2xl font-bold mb-2">システム関連FAQ</h2>
-            <p className="text-zinc-600">守り雲システムの一般的な質問と回答です。</p>
+            <p className="text-zinc-600">WINDシステムの一般的な質問と回答です。</p>
           </div>
 
         {/* 検索とフィルター */}

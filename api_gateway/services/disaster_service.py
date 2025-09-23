@@ -21,15 +21,23 @@ class DisasterService:
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         sort_by: str = "detected_at",
-        order: str = "desc"
+        order: str = "desc",
+        recent_only: bool = True  # デフォルトで24時間以内のみ
     ) -> Tuple[List[Dict], int]:
         """
         災害一覧を取得（フィルタリング・ページネーション対応）
         シンプルプロキシ版：Firestoreから直接取得
         """
         try:
-            # Firestoreクエリ構築
-            query = self.db.collection('disasters')
+            # Firestoreクエリ構築 (incidentsコレクションを使用)
+            query = self.db.collection('incidents')
+
+            # 24時間以内フィルタ（パフォーマンス大幅改善）
+            if recent_only and not since:
+                from datetime import timedelta
+                last_24_hours = datetime.now() - timedelta(hours=24)
+                query = query.where('detected_at', '>=', last_24_hours)
+                self.logger.info(f"Applied 24h filter: {last_24_hours}")
 
             # フィルタ適用
             if prefecture:
@@ -52,13 +60,19 @@ class DisasterService:
             direction = firestore.Query.DESCENDING if order == "desc" else firestore.Query.ASCENDING
             query = query.order_by(sort_by, direction=direction)
 
-            # 全件数取得（簡易版）
-            all_docs = list(query.stream())
-            total_count = len(all_docs)
-
-            # ページネーション適用
+            # パフォーマンス最適化: 必要最小限のクエリ実行
+            # ページネーション用のクエリ（実際に必要なドキュメントのみ取得）
             offset = (page - 1) * limit
-            paginated_docs = all_docs[offset:offset + limit]
+            paginated_query = query.limit(limit * 2)  # 多少多めに取得してoffsetの代替
+            
+            # stream()の代わりにget()を使用（より高速）
+            paginated_docs = list(paginated_query.stream())[offset:offset + limit]
+            
+            # 総件数は推定値を使用（パフォーマンス優先）
+            # 実際のドキュメント数ではなく、取得件数を総数として返す
+            total_count = len(paginated_docs)
+            if len(paginated_docs) == limit:
+                total_count = limit * page + 1  # 次ページが存在することを示唆
 
             # データ整形
             disasters = []
@@ -81,7 +95,7 @@ class DisasterService:
     async def get_disaster_by_id(self, disaster_id: str) -> Optional[Dict]:
         """災害詳細情報を取得"""
         try:
-            doc_ref = self.db.collection('disasters').document(disaster_id)
+            doc_ref = self.db.collection('incidents').document(disaster_id)
             doc = doc_ref.get()
 
             if not doc.exists:
@@ -103,8 +117,8 @@ class DisasterService:
     ) -> List[Dict]:
         """マップ表示用の軽量化マーカーデータを取得"""
         try:
-            # Firestoreクエリ
-            query = self.db.collection('disasters')
+            # Firestoreクエリ (incidentsコレクションを使用)
+            query = self.db.collection('incidents')
 
             if is_active is not None:
                 query = query.where('is_active', '==', is_active)
@@ -155,9 +169,12 @@ class DisasterService:
             return []
 
     def _format_disaster_for_frontend(self, data: Dict, doc_id: str) -> Dict:
-        """Firestoreデータをフロントエンド用に整形"""
+        """incidentsコレクションデータをフロントエンド用に整形"""
         location = data.get('location', {})
 
+        # incidents特有のフィールドを処理
+        is_active = self._determine_is_active(data)
+        
         return {
             "id": doc_id,
             "title": data.get('summary', '災害情報'),
@@ -169,11 +186,18 @@ class DisasterService:
             },
             "severity": self._get_severity_level(data.get('severity', 0)),
             "confidence": data.get('confidence', 0),
-            "is_active": data.get('is_active', False),
+            "is_active": is_active,
             "reported_at": data.get('detected_at'),
-            "last_updated": data.get('updated_at', data.get('detected_at')),
+            "last_updated": data.get('last_bulletin_at', data.get('orchestration_started_at', data.get('detected_at'))),
             "description": data.get('summary', ''),
-            "source": data.get('source', [])
+            "source": data.get('source', []),
+            # incidents特有の追加情報
+            "bulletins_count": len(data.get('bulletins', [])),
+            "has_analysis": len(data.get('analysis_results', [])) > 0,
+            "has_collected_info": len(data.get('collected_info', [])) > 0,
+            "related_news_count": len(data.get('collected_info', [])),
+            "orchestration_started_at": data.get('orchestration_started_at'),
+            "last_bulletin_at": data.get('last_bulletin_at')
         }
 
     def _get_severity_level(self, severity_score: float) -> str:
@@ -184,3 +208,23 @@ class DisasterService:
             return "medium"
         else:
             return "low"
+    
+    def _determine_is_active(self, data: Dict) -> bool:
+        """incidentデータからis_activeを判定"""
+        # 明示的にis_activeが設定されている場合
+        if 'is_active' in data:
+            return data['is_active']
+        
+        # bulletinが最近作成されていればアクティブ
+        last_bulletin_at = data.get('last_bulletin_at')
+        if last_bulletin_at:
+            try:
+                from datetime import datetime, timedelta
+                last_bulletin_time = datetime.fromisoformat(last_bulletin_at.replace('Z', '+00:00'))
+                # 過去24時間以内にbulletinがあればアクティブ
+                return (datetime.now() - last_bulletin_time) < timedelta(hours=24)
+            except:
+                pass
+        
+        # orchestrationが開始されていればアクティブとみなす
+        return 'orchestration_started_at' in data

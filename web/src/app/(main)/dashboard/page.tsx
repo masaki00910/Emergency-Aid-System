@@ -261,6 +261,14 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        {/* FAQ Reference Note */}
+        <div className="mt-8 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+            <span>💡</span>
+            <span>このシステムの使い方を知りたい場合はFAQを参照して下さい</span>
+          </div>
+        </div>
     </div>
   )
 }

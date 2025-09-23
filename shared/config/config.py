@@ -46,8 +46,8 @@ class Config:
         "project_id": GOOGLE_CLOUD_PROJECT,
         "location": GOOGLE_CLOUD_REGION,
         "models": {
-            "gemini_pro": "gemini-2.5-flash",
-            "gemini_flash": "gemini-2.5-flash-lite", 
+            "gemini_pro": "gemini-2.0-flash-exp",
+            "gemini_flash": "gemini-2.5-flash", 
             "embedding": "textembedding-gecko-multilingual@001"
         }
     }

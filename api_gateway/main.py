@@ -5,7 +5,11 @@ import logging
 from datetime import datetime
 import os
 
-from routers import disasters, websocket
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from routers import disasters, websocket, faq
 from services.disaster_service import DisasterService
 
 # ログ設定
@@ -18,10 +22,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS設定（開発環境用）
+# CORS設定（開発・本番環境対応）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],  # フロントエンドのURL
+    allow_origins=[
+        "http://localhost:3000", 
+        "http://127.0.0.1:3000",
+        "https://disaster-frontend-670435464520.asia-northeast1.run.app"  # 本番フロントエンド追加
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -33,8 +41,9 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # ルーター登録
 app.include_router(disasters.router, prefix="/api/public", tags=["disasters"])
 app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+app.include_router(faq.router, tags=["faq"])
 
-@app.on_startup
+@app.on_event("startup")
 async def startup_event():
     """アプリケーション起動時の初期化"""
     logger.info("Emergency Aid System API Gateway starting up...")
@@ -43,11 +52,22 @@ async def startup_event():
     try:
         disaster_service = DisasterService()
         # テスト用の軽量クエリでFirestore接続確認
-        test_query = disaster_service.db.collection('disasters').limit(1)
+        test_query = disaster_service.db.collection('incidents').limit(1)
         list(test_query.stream())
         logger.info("✅ Firestore connection established")
     except Exception as e:
         logger.error(f"❌ Firestore connection failed: {e}")
+    
+    # VertexAI接続確認
+    try:
+        from shared.utils.vertex_ai_client import get_vertex_ai_client
+        vertex_client = get_vertex_ai_client()
+        logger.info(f"✅ VertexAI client initialized: {type(vertex_client)}")
+        logger.info(f"✅ VertexAI local mode: {vertex_client.is_local_mode}")
+    except Exception as e:
+        logger.error(f"❌ VertexAI connection failed: {e}")
+        import traceback
+        logger.error(f"❌ VertexAI traceback: {traceback.format_exc()}")
 
 @app.get("/")
 async def root():
@@ -61,7 +81,10 @@ async def root():
             "disasters": "/api/public/disasters",
             "disaster_detail": "/api/public/disasters/{id}",
             "map_data": "/api/public/disasters/map-data",
-            "websocket": "/ws/connect"
+            "websocket": "/ws/connect",
+            "faq": "/api/public/faq/{disaster_id}",
+            "faq_ask": "/api/public/faq/{disaster_id}/ask",
+            "active_faqs": "/api/public/faq/active"
         }
     }
 

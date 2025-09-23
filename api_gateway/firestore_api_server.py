@@ -13,6 +13,24 @@ from urllib.parse import urlparse, parse_qs
 import threading
 import time
 import sys
+import asyncio
+
+# 環境変数を確実に設定
+os.environ['GOOGLE_CLOUD_PROJECT'] = 'sharelabai-hackathon2'
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/hiroki/Emergency-Aid-System/keys/service-account-key.json'
+os.environ['USE_MOCK_LLM'] = 'false'
+
+# Vertex AI クライアント統合（同期版）
+try:
+    import sys
+    sys.path.append('/Users/hiroki/Emergency-Aid-System')
+    from shared.utils.sync_vertex_ai_client import get_sync_vertex_ai_client
+    VERTEX_AI_AVAILABLE = True
+    print("✅ Sync Vertex AI client module imported successfully")
+except ImportError as e:
+    print(f"⚠️  Sync Vertex AI client not available: {e}")
+    VERTEX_AI_AVAILABLE = False
+    get_sync_vertex_ai_client = None
 
 # 公的データソース統合
 try:
@@ -105,6 +123,12 @@ class FirestoreAPIHandler(BaseHTTPRequestHandler):
                     self.handle_disaster_detail(disaster_id)
             elif path == '/api/public/disasters/map-data':
                 self.handle_map_data(query_params)
+            elif path.startswith('/api/public/faq/') and path != '/api/public/faq/active':
+                # Handle FAQ for specific disaster: /api/public/faq/{disaster_id}
+                disaster_id = path.split('/')[-1]
+                self.handle_faq_by_disaster(disaster_id)
+            elif path == '/api/public/faq/active':
+                self.handle_active_faqs()
             elif path == '/api/alerts':
                 self.handle_alerts(query_params)
             elif path == '/api/feeds':
@@ -128,6 +152,35 @@ class FirestoreAPIHandler(BaseHTTPRequestHandler):
             response = {'error': str(e)}
             self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
 
+    def do_POST(self):
+        """POST request handling"""
+        try:
+            parsed_url = urlparse(self.path)
+            path = parsed_url.path
+            
+            print(f"🌐 POST Request: {path}")
+            
+            # Read request body
+            content_length = int(self.headers.get('Content-Length', 0))
+            request_body = self.rfile.read(content_length).decode('utf-8')
+            
+            if path.startswith('/api/public/faq/') and path.endswith('/ask'):
+                # Handle FAQ question: /api/public/faq/{disaster_id}/ask
+                disaster_id = path.split('/')[-2]
+                self.handle_faq_question(disaster_id, request_body)
+            else:
+                self.send_response(404)
+                self.end_headers()
+                response = {'error': 'POST endpoint not found'}
+                self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                
+        except Exception as e:
+            print(f"❌ POST Request error: {e}")
+            self.send_response(500)
+            self.end_headers()
+            response = {'error': str(e)}
+            self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+
     def handle_root(self):
         """ルート endpoint"""
         self.send_response(200)
@@ -144,6 +197,9 @@ class FirestoreAPIHandler(BaseHTTPRequestHandler):
                 'GET /api/public/disasters - 災害一覧取得',
                 'GET /api/public/disasters/{id} - 災害詳細取得',  
                 'GET /api/public/disasters/map-data - マップ用データ',
+                'GET /api/public/faq/{disaster_id} - 災害特化FAQ取得',
+                'POST /api/public/faq/{disaster_id}/ask - FAQ質問',
+                'GET /api/public/faq/active - アクティブ災害FAQ一覧',
                 'GET /api/health - ヘルスチェック'
             ]
         }
@@ -1551,6 +1607,567 @@ class FirestoreAPIHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         """ログ出力をカスタマイズ"""
         pass  # アクセスログを無効化
+
+    def handle_faq_by_disaster(self, disaster_id: str):
+        """災害特化FAQ取得"""
+        try:
+            print(f"📄 FAQ Request for disaster: {disaster_id}")
+            
+            if not self.db:
+                self.send_response(500)
+                self.end_headers()
+                response = {'error': 'Database not available'}
+                self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                return
+            
+            # 災害情報を取得（既存の詳細取得メソッドを使用）
+            disaster_data = self.fetch_disaster_detail_from_firestore(disaster_id)
+            
+            if not disaster_data:
+                self.send_response(404)
+                self.end_headers()
+                response = {'error': f'Disaster {disaster_id} not found'}
+                self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                return
+            
+            # FAQ データを取得/生成
+            faq_ref = self.db.collection('faq_chat_logs').document(disaster_id)
+            faq_doc = faq_ref.get()
+            
+            faqs = []
+            if faq_doc.exists:
+                faq_data = faq_doc.to_dict()
+                stored_faqs = faq_data.get('faqs', [])
+                
+                for i, stored_faq in enumerate(stored_faqs):
+                    faqs.append({
+                        'id': f"{disaster_id}_faq_{i}",
+                        'disaster_id': disaster_id,
+                        'question': stored_faq.get('question', ''),
+                        'answer': stored_faq.get('answer', ''),
+                        'category': stored_faq.get('category', 'action_guide'),
+                        'priority': stored_faq.get('priority', i + 1),
+                        'created_at': faq_data.get('created_at', datetime.now().isoformat())
+                    })
+            else:
+                # 基本的なFAQを生成
+                faqs = self.generate_basic_faqs(disaster_id, disaster_data)
+            
+            response = {
+                'disaster_id': disaster_id,
+                'disaster_title': disaster_data.get('title', ''),
+                'hazard_type': disaster_data.get('type', 'other'),
+                'area': disaster_data.get('location', {}).get('admin', ''),
+                'faqs': faqs,
+                'last_updated': datetime.now().isoformat()
+            }
+            
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+            
+        except Exception as e:
+            print(f"❌ FAQ Error: {e}")
+            self.send_response(500)
+            self.end_headers()
+            response = {'error': str(e)}
+            self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+
+    def handle_faq_question(self, disaster_id: str, request_body: str):
+        """FAQ質問処理"""
+        try:
+            print(f"❓ FAQ Question for disaster: {disaster_id}")
+            
+            if not self.db:
+                self.send_response(500)
+                self.end_headers()
+                response = {'error': 'Database not available'}
+                self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                return
+            
+            # リクエストボディをパース
+            request_data = json.loads(request_body)
+            question = request_data.get('question', '').strip()
+            
+            if not question:
+                self.send_response(400)
+                self.end_headers()
+                response = {'error': 'Question is required'}
+                self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                return
+            
+            # 災害情報を取得（既存の詳細取得メソッドを使用）
+            disaster_data = self.fetch_disaster_detail_from_firestore(disaster_id)
+            
+            if not disaster_data:
+                self.send_response(404)
+                self.end_headers()
+                response = {'error': f'Disaster {disaster_id} not found'}
+                self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                return
+            
+            # 質問に対する回答を生成（Vertex AI LLMを使用）
+            answer = self.run_async_llm_answer(disaster_data, question)
+            
+            # ユーザーインタラクションを保存
+            self.save_user_interaction(disaster_id, question, answer)
+            
+            model_name = 'gemini-2.5-flash' if VERTEX_AI_AVAILABLE else 'basic-rules'
+            response = {
+                'question': question,
+                'answer': answer,
+                'timestamp': datetime.now().isoformat(),
+                'model_used': model_name
+            }
+            
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+            
+        except Exception as e:
+            print(f"❌ FAQ Question Error: {e}")
+            self.send_response(500)
+            self.end_headers()
+            response = {'error': str(e)}
+            self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+
+    def handle_active_faqs(self):
+        """アクティブ災害のFAQ一覧取得"""
+        try:
+            print("📄 Active FAQs Request")
+            
+            if not self.db:
+                self.send_response(500)
+                self.end_headers()
+                response = {'error': 'Database not available'}
+                self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+                return
+            
+            # アクティブな災害を取得（incidentsコレクションから）
+            disasters_ref = self.db.collection('incidents')
+            query = disasters_ref.where('is_active', '==', True).limit(10)
+            disasters = list(query.stream())
+            
+            active_faqs = []
+            for disaster_doc in disasters:
+                disaster_data = disaster_doc.to_dict()
+                disaster_id = disaster_doc.id
+                
+                # FAQを取得
+                faq_ref = self.db.collection('faq_chat_logs').document(disaster_id)
+                faq_doc = faq_ref.get()
+                
+                faqs = []
+                if faq_doc.exists:
+                    faq_data = faq_doc.to_dict()
+                    stored_faqs = faq_data.get('faqs', [])
+                    
+                    for i, stored_faq in enumerate(stored_faqs):
+                        faqs.append({
+                            'id': f"{disaster_id}_faq_{i}",
+                            'disaster_id': disaster_id,
+                            'question': stored_faq.get('question', ''),
+                            'answer': stored_faq.get('answer', ''),
+                            'category': stored_faq.get('category', 'action_guide'),
+                            'priority': stored_faq.get('priority', i + 1),
+                            'created_at': faq_data.get('created_at', datetime.now().isoformat())
+                        })
+                else:
+                    # 基本的なFAQを生成
+                    faqs = self.generate_basic_faqs(disaster_id, disaster_data)
+                
+                if faqs:
+                    active_faqs.append({
+                        'disaster_id': disaster_id,
+                        'disaster_title': disaster_data.get('title', ''),
+                        'hazard_type': disaster_data.get('type', 'other'),
+                        'area': disaster_data.get('location', {}).get('admin', ''),
+                        'faqs': faqs,
+                        'last_updated': datetime.now().isoformat()
+                    })
+            
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+            self.wfile.write(json.dumps(active_faqs, ensure_ascii=False).encode('utf-8'))
+            
+        except Exception as e:
+            print(f"❌ Active FAQs Error: {e}")
+            self.send_response(500)
+            self.end_headers()
+            response = {'error': str(e)}
+            self.wfile.write(json.dumps(response, ensure_ascii=False).encode('utf-8'))
+
+    def generate_basic_faqs(self, disaster_id: str, disaster_data: dict) -> list:
+        """基本的なFAQを生成"""
+        disaster_type = disaster_data.get('type', 'other')
+        location = disaster_data.get('location', {}).get('admin', '該当地域')
+        
+        faq_templates = {
+            'earthquake': [
+                {
+                    'question': f'{location}で地震が発生した際の基本的な行動は？',
+                    'answer': '地震発生時は、まず身の安全を確保してください。机の下に潜り頭を守る、火の元を確認して消火する、出口を確保するなどの基本行動を取ってください。揺れが収まったら、余震に注意しながら避難の準備をしてください。',
+                    'category': 'action_guide'
+                },
+                {
+                    'question': '避難のタイミングはいつですか？',
+                    'answer': '地震の場合、建物に亀裂や損傷が見られる場合は速やかに避難してください。津波警報が発表された場合は即座に高台へ避難してください。自治体から避難指示が出た場合も迅速に従ってください。',
+                    'category': 'evacuation'
+                },
+                {
+                    'question': '余震への備えはどうすれば良いですか？',
+                    'answer': '大きな地震の後は余震が続く可能性があります。不安定な物の近くを避け、常に安全な場所を意識してください。非常用品を手の届く場所に準備し、家族との連絡方法を確認してください。',
+                    'category': 'safety_tips'
+                }
+            ],
+            'flood': [
+                {
+                    'question': f'{location}で洪水が発生した際の基本的な対応は？',
+                    'answer': '洪水時は、まず高い場所に避難してください。水深が膝上になったら歩行は危険です。車での移動は避け、電気設備には近づかないでください。最新の気象情報と避難情報を確認し続けてください。',
+                    'category': 'action_guide'
+                },
+                {
+                    'question': '洪水時の避難タイミングは？',
+                    'answer': '大雨警報が発表された時点で避難準備を始めてください。避難勧告が出る前の明るい時間帯に避難することが重要です。水位が膝下に達する前に避難を完了してください。',
+                    'category': 'evacuation'
+                },
+                {
+                    'question': '浸水した場所での注意点は？',
+                    'answer': '浸水した電気設備には絶対に触れないでください。汚染された水でケガをしないよう注意し、長靴よりも運動靴を履いてください。マンホールの蓋が外れている可能性があるため、棒で足元を確認しながら移動してください。',
+                    'category': 'safety_tips'
+                }
+            ]
+        }
+        
+        templates = faq_templates.get(disaster_type, [
+            {
+                'question': f'{location}で災害が発生した際の基本的な対応は？',
+                'answer': '災害発生時は、まず身の安全を確保し、最新の情報を収集してください。自治体の指示に従い、無理な行動は避けて安全な場所で待機してください。',
+                'category': 'action_guide'
+            }
+        ])
+        
+        faqs = []
+        for i, template in enumerate(templates):
+            faqs.append({
+                'id': f"{disaster_id}_basic_{i}",
+                'disaster_id': disaster_id,
+                'question': template['question'],
+                'answer': template['answer'],
+                'category': template['category'],
+                'priority': i + 1,
+                'created_at': datetime.now().isoformat()
+            })
+        
+        return faqs
+
+    def generate_basic_answer(self, disaster_data: dict, question: str) -> str:
+        """基本的な回答を生成"""
+        disaster_type = disaster_data.get('type', 'other')
+        location = disaster_data.get('location', {}).get('admin', '該当地域')
+        severity = disaster_data.get('severity', 'medium')
+        
+        question_lower = question.lower()
+        
+        # 質問のキーワードに基づいて回答を生成
+        if '避難' in question or '逃げ' in question:
+            if disaster_type == 'earthquake':
+                return f'{location}では地震により避難が必要な場合があります。建物の安全性を確認し、必要に応じて指定避難所に向かってください。余震に注意しながら行動してください。'
+            elif disaster_type == 'flood':
+                return f'{location}では洪水により避難が必要です。高台や頑丈な建物の上階に避難してください。水深が深くなる前に避難を完了してください。'
+            else:
+                return f'{location}で災害が発生しています。自治体の避難指示に従い、安全な場所に避難してください。'
+        
+        elif '安全' in question or '注意' in question:
+            return f'{location}で発生中の{self.get_disaster_type_japanese(disaster_type)}について、最新の気象情報と自治体からの情報を常に確認し、無理な外出は避けて安全な場所で待機してください。'
+        
+        elif '準備' in question or '用意' in question:
+            return f'{disaster_type}に備えて、水・食料・懐中電灯・ラジオ・救急用品などの非常用品を準備してください。避難経路と避難所も事前に確認しておきましょう。'
+        
+        else:
+            # 一般的な回答
+            severity_text = '高い' if severity == 'high' else '中程度の' if severity == 'medium' else '比較的軽微な'
+            return f'{location}で{severity_text}深刻度の{self.get_disaster_type_japanese(disaster_type)}が発生しています。最新の気象情報と避難情報を確認し、自治体の指示に従って適切な行動を取ってください。安全確保を最優先に行動しましょう。'
+
+    def get_disaster_type_japanese(self, disaster_type: str) -> str:
+        """災害種別を日本語に変換"""
+        type_mapping = {
+            'earthquake': '地震',
+            'typhoon': '台風',
+            'flood': '洪水',
+            'landslide': '土砂災害',
+            'tsunami': '津波',
+            'wildfire': '山火事',
+            'other': '災害'
+        }
+        return type_mapping.get(disaster_type, '災害')
+
+    def save_user_interaction(self, disaster_id: str, question: str, answer: str):
+        """ユーザーインタラクションをFirestoreに保存"""
+        try:
+            if not self.db:
+                return
+                
+            faq_ref = self.db.collection('faq_chat_logs').document(disaster_id)
+            faq_doc = faq_ref.get()
+            
+            if faq_doc.exists:
+                faq_data = faq_doc.to_dict()
+                interactions = faq_data.get('user_interactions', [])
+            else:
+                interactions = []
+            
+            # 新しいインタラクションを追加
+            interactions.append({
+                'question': question,
+                'answer': answer,
+                'timestamp': datetime.now().isoformat()
+            })
+            
+            # Firestoreを更新
+            faq_ref.set({
+                'faqs': faq_doc.to_dict().get('faqs', []) if faq_doc.exists else [],
+                'user_interactions': interactions,
+                'created_at': faq_doc.to_dict().get('created_at', datetime.now().isoformat()) if faq_doc.exists else datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            print(f"❌ Failed to save user interaction: {e}")
+
+    def run_async_llm_answer(self, disaster_data: dict, question: str) -> str:
+        """非同期LLM回答生成を同期的に実行"""
+        try:
+            if not VERTEX_AI_AVAILABLE:
+                print("⚠️ Vertex AI not available, using basic answer")
+                return self.generate_basic_answer(disaster_data, question)
+            
+            # 非同期関数を同期的に実行
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(self.generate_llm_answer(disaster_data, question))
+                return result
+            finally:
+                loop.close()
+                
+        except Exception as e:
+            print(f"❌ LLM Answer generation failed: {e}")
+            # フォールバックとして基本回答を使用
+            return self.generate_basic_answer(disaster_data, question)
+
+    def generate_llm_answer(self, disaster_data: dict, question: str) -> str:
+        """Vertex AI LLMを使用して回答を生成"""
+        try:
+            print("🤖 Generating LLM answer using Vertex AI...")
+            
+            # 災害コンテキストを構築
+            disaster_type = disaster_data.get('type', 'other')
+            location = disaster_data.get('location', {}).get('admin', '該当地域')
+            severity = disaster_data.get('severity', 'medium')
+            title = disaster_data.get('title', '')
+            description = disaster_data.get('description', '')
+            
+            # FAQコンテキストを取得
+            faqs = self.generate_basic_faqs(disaster_data.get('id', ''), disaster_data)
+            faq_context = "\n".join([f"Q: {faq['question']}\nA: {faq['answer']}" for faq in faqs])
+            
+            # LLMプロンプトを構築
+            prompt = f"""
+あなたは災害対応の専門家として、被災者からの質問に親切で詳細な回答を提供してください。
+
+現在の災害状況:
+- 場所: {location}
+- 災害種別: {self.get_disaster_type_japanese(disaster_type)}
+- 深刻度: {severity}
+- タイトル: {title}
+- 詳細: {description}
+
+参考FAQ:
+{faq_context}
+
+ユーザーの質問: {question}
+
+回答する際の注意点:
+- 具体的で実用的な情報を提供してください
+- 安全を最優先に考慮してください
+- 地域特有の情報があれば含めてください
+- 緊急時の連絡先(119番、110番)を必要に応じて案内してください
+- 自治体や気象庁の最新情報を確認するよう促してください
+
+回答:
+"""
+
+            # Vertex AI LLMで回答生成（同期版クライアント使用）
+            if not VERTEX_AI_AVAILABLE or not get_sync_vertex_ai_client:
+                return self.generate_basic_answer(disaster_data, question)
+            
+            try:
+                print(f"🔧 DEBUG: GOOGLE_CLOUD_PROJECT = {os.getenv('GOOGLE_CLOUD_PROJECT')}")
+                print(f"🔧 DEBUG: USE_MOCK_LLM = {os.getenv('USE_MOCK_LLM')}")
+                
+                vertex_client = get_sync_vertex_ai_client()
+                print(f"🔧 DEBUG: vertex_client.project_id = {vertex_client.project_id}")
+                print(f"🔧 DEBUG: vertex_client.is_local_mode = {vertex_client.is_local_mode}")
+                
+                answer = vertex_client.answer_with_faq(
+                    [{'question': faq['question'], 'answer': faq['answer']} for faq in faqs],
+                    question  # ユーザーの質問をそのまま渡す
+                )
+            except Exception as e:
+                print(f"❌ Sync Vertex AI client failed: {e}")
+                import traceback
+                print(f"❌ Full traceback: {traceback.format_exc()}")
+                return self.generate_basic_answer(disaster_data, question)
+            
+            if answer and len(answer.strip()) > 10:
+                print("✅ LLM answer generated successfully")
+                return answer.strip()
+            else:
+                print("⚠️ LLM answer too short, using fallback")
+                return self.generate_basic_answer(disaster_data, question)
+                
+        except Exception as e:
+            print(f"❌ Vertex AI LLM generation failed: {e}")
+            # フォールバックとして基本回答を使用
+            return self.generate_basic_answer(disaster_data, question)
+
+    async def generate_detailed_answer(self, disaster_data: dict, question: str, faqs: list) -> str:
+        """ローカル環境向けの詳細回答生成"""
+        try:
+            disaster_type = disaster_data.get('type', 'other')
+            location = disaster_data.get('location', {}).get('admin', '該当地域')
+            severity = disaster_data.get('severity', 'medium')
+            title = disaster_data.get('title', '')
+            
+            # 質問を分析してカテゴリー分け
+            question_lower = question.lower()
+            
+            if '金沢' in question and '避難' in question and ('地域' in question or '場所' in question):
+                # 金沢の具体的な避難場所についての質問
+                return f"""金沢市にお住まいの方の避難についてお答えします。
+
+**緊急避難場所：**
+• 金沢市内の指定避難所：小中学校、公民館、体育館など
+• 高台地域：東山、卯辰山、医王山方面
+• 頑丈な建物：市役所、県庁、大型商業施設の上階
+
+**洪水時の具体的な避難方針：**
+1. **浅野川・犀川周辺の方**: 川から離れた高台へ速やかに移動
+2. **市街地中心部の方**: 最寄りの3階建て以上の建物へ垂直避難
+3. **郊外の方**: 指定避難所または高台の安全な場所へ
+
+**避難のタイミング：**
+• 避難準備情報発表時：避難準備開始
+• 避難勧告発表時：速やかに避難開始
+• 水位上昇を確認した時：即座に避難
+
+金沢市の防災情報は市公式サイトやハザードマップで最新情報をご確認ください。緊急時は119番へお電話ください。"""
+
+            elif '避難' in question:
+                # 一般的な避難に関する質問
+                return f"""{location}での避難について詳しくお答えします。
+
+**基本的な避難方針：**
+• 自治体の避難指示に従って行動
+• 早めの避難を心がける（明るい時間帯が安全）
+• 避難所への経路を事前に確認
+
+**{self.get_disaster_type_japanese(disaster_type)}特有の注意点：**
+{self._get_specific_evacuation_advice(disaster_type)}
+
+**避難時の持ち物：**
+• 非常用品（水、食料、薬、着替え）
+• 重要書類（身分証明書、保険証等）
+• 現金、携帯電話・充電器
+
+**連絡先：**
+• 緊急時：119番（消防）・110番（警察）
+• 自治体防災情報を定期的に確認
+
+安全を最優先に、無理をせず早めの行動を心がけてください。"""
+
+            elif '安全' in question or '注意' in question:
+                return f"""{location}での安全確保について詳しくお答えします。
+
+**現在の状況への対応：**
+• 深刻度：{severity}レベルの{self.get_disaster_type_japanese(disaster_type)}が発生中
+• 継続的な情報収集が重要
+
+**安全確保の基本：**
+• 最新の気象情報・避難情報を定期的に確認
+• 無理な外出は避け、安全な場所で待機
+• 家族・近隣との連絡体制を確保
+
+**{self.get_disaster_type_japanese(disaster_type)}特有の安全対策：**
+{self._get_specific_safety_advice(disaster_type)}
+
+**緊急時の判断基準：**
+• 身の危険を感じた時は躊躇せず避難
+• 自治体からの指示は最優先で従う
+• 「まだ大丈夫」ではなく「早めの行動」を
+
+最新情報は気象庁・自治体の公式情報をご確認ください。"""
+
+            else:
+                # その他の一般的な質問
+                return f"""{location}の{self.get_disaster_type_japanese(disaster_type)}について、ご質問にお答えします。
+
+**現在の状況：**
+• 場所：{location}
+• 災害種別：{self.get_disaster_type_japanese(disaster_type)}
+• 深刻度：{severity}レベル
+
+**基本的な対応：**
+• 最新の気象情報と避難情報を継続的に確認
+• 自治体からの指示に従った適切な行動
+• 家族・近隣との安全確認と情報共有
+• 無理な外出は避け、安全確保を最優先
+
+**追加のアドバイス：**
+{self._get_general_advice(disaster_type)}
+
+**重要な連絡先：**
+• 緊急時：119番（消防）・110番（警察）
+• 気象庁、自治体の最新情報を確認
+
+何か具体的なご不明点がございましたら、遠慮なくお尋ねください。安全を最優先に行動してください。"""
+
+        except Exception as e:
+            print(f"❌ Detailed answer generation failed: {e}")
+            return self.generate_basic_answer(disaster_data, question)
+
+    def _get_specific_evacuation_advice(self, disaster_type: str) -> str:
+        """災害種別ごとの避難アドバイス"""
+        advice_map = {
+            'flood': '• 高台や3階以上の建物への避難\n• 車での移動は避ける（アンダーパス等危険）\n• 水深膝上では歩行禁止',
+            'earthquake': '• 建物の安全性確認後に避難\n• 余震に注意しながら行動\n• 津波警報時は高台へ即座に避難',
+            'typhoon': '• 暴風前に避難完了\n• 頑丈な建物内で窓から離れた場所\n• 外出は絶対に避ける'
+        }
+        return advice_map.get(disaster_type, '• 自治体の指示に従って安全な場所へ避難')
+
+    def _get_specific_safety_advice(self, disaster_type: str) -> str:
+        """災害種別ごとの安全アドバイス"""
+        advice_map = {
+            'flood': '• 浸水した電気設備には触れない\n• 汚染水での怪我に注意\n• 長靴より運動靴を着用',
+            'earthquake': '• 余震への継続的な警戒\n• 火の元確認・ガス漏れ点検\n• 不安定な物から離れる',
+            'typhoon': '• 飛散物からの身体保護\n• 停電・断水への備え\n• 河川・海岸への接近禁止'
+        }
+        return advice_map.get(disaster_type, '• 状況に応じた安全確保\n• 無理な行動は避ける')
+
+    def _get_general_advice(self, disaster_type: str) -> str:
+        """災害種別ごとの一般アドバイス"""
+        advice_map = {
+            'flood': '洪水は予想以上に急激に進行する場合があります。水位の変化に注意し、早めの判断を心がけてください。',
+            'earthquake': '余震は長期間続く可能性があります。建物の安全性を定期的に確認し、備蓄品を確保してください。',
+            'typhoon': '台風は進路予測が困難な場合があります。最新の気象情報を頻繁に確認し、計画的な行動を取ってください。'
+        }
+        return advice_map.get(disaster_type, '災害の状況は刻々と変化します。常に最新情報を確認し、柔軟な対応を心がけてください。')
 
 def start_firestore_api_server():
     """Firestore連携APIサーバーを起動"""

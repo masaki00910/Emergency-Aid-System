@@ -19,7 +19,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
   return (
     <aside className={`hidden md:block sticky top-0 h-dvh w-56 shrink-0 bg-zinc-900 text-zinc-50 ${className}`}>
       <div className="p-4 border-b border-zinc-800">
-        <div className="text-xl font-semibold tracking-tight">守り雲</div>
+        <div className="text-xl font-semibold tracking-tight">WIND</div>
       </div>
       <nav className="p-2 space-y-1">
         {items.map(it => {
