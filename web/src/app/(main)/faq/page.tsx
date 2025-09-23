@@ -17,8 +17,8 @@ interface FAQItem {
 const faqData: FAQItem[] = [
   {
     id: '1',
-    question: 'Aigisシステムとは何ですか？',
-    answer: 'Aigisは、AI技術を活用した緊急対応支援システムです。リアルタイムで災害情報を収集・分析し、迅速な災害対応をサポートします。気象庁、NHK、SNSなどの情報源から自動的にデータを取得し、重要な情報を優先表示します。名前はギリシャ神話の守護神の盾「アイギス」に由来します。',
+    question: 'WINDシステムとは何ですか？',
+    answer: 'WINDは、マルチAI Agentアーキテクチャを基盤とした災害情報システムです。本システムの特徴は、AI Agentによる災害情報の自動監視・要約機能と、個人のプロフィルに基づくパーソナライズされた情報提供にあります。名前は「What I Need to Do」の略です。',
     category: 'system'
   },
   {
@@ -135,7 +135,7 @@ export default function FAQPage() {
         <div className="max-w-4xl mx-auto">
           <div className="mb-8 animate-fade-in">
             <h1 className="text-5xl font-bold gradient-text animate-float mb-4">よくある質問</h1>
-            <p className="text-slate-600 text-lg">Aigisシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
+            <p className="text-slate-600 text-lg">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
           </div>
           <div className="text-center py-16 text-slate-600">
             <div className="inline-flex items-center gap-3">
@@ -153,7 +153,7 @@ export default function FAQPage() {
       <div className="max-w-4xl mx-auto">
         <div className="mb-8 animate-fade-in">
           <h1 className="text-5xl font-bold gradient-text animate-float mb-4">よくある質問</h1>
-          <p className="text-slate-600 text-lg">Aigisシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
+          <p className="text-slate-600 text-lg">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
         </div>
 
         {error && (
@@ -262,7 +262,7 @@ export default function FAQPage() {
               </div>
               <div>
                 <h2 className="text-3xl font-bold gradient-text">システム関連FAQ</h2>
-                <p className="text-slate-600">Aigisシステムの一般的な質問と回答です。</p>
+                <p className="text-slate-600">WINDシステムの一般的な質問と回答です。</p>
               </div>
             </div>
           </div>

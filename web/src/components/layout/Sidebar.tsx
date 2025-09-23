@@ -29,7 +29,7 @@ export default function Sidebar({ className = '' }: SidebarProps) {
           </div>
           <div>
             <div className="text-xl font-bold bg-gradient-to-r from-blue-300 to-cyan-300 bg-clip-text text-transparent">
-              Aigis
+              WIND
             </div>
             <div className="text-xs text-slate-400 font-medium">
               Emergency Response

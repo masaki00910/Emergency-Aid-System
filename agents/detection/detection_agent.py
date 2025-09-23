@@ -33,6 +33,8 @@ class DisasterDetectionAgent(BaseAgent):
         ]
         self.severity_threshold = 0.2  # より低いしきい値で災害を検知
         self.confidence_threshold = 0.4  # 信頼度も少し低く設定
+        self.similarity_threshold = 0.8  # 意味的類似度しきい値
+        self.similarity_time_window_hours = 24  # 類似度チェックの時間窓
     
     async def process(self, task: AgentTask) -> AgentResult:
         try:
@@ -153,32 +155,36 @@ class DisasterDetectionAgent(BaseAgent):
     
     async def _is_duplicate(self, content_hash: str, content_text: str = "") -> bool:
         try:
-            # 診断のため一時的に重複チェックを無効化
             logger.info(f"DEBUG: Checking duplicate for content: {content_text[:100]}...")
             
+            # 1. ハッシュベースの完全一致チェック
             doc_ref = self.gcp.firestore.collection('processed_content').document(content_hash)
             doc = doc_ref.get()
             
             if doc.exists:
-                # 災害関連キーワードを含む記事は24時間後に再分析を許可
-                disaster_keywords = ['災害', '地震', '津波', '台風', '洪水', '土砂', '避難', '警報', '注意報', 
-                                   '大雨', '暴雨', '線状降水帯', '氾濫', '浸水', '落雷', '雷', '雨', '風', 
-                                   '被害', '倒壊', '停電', '断水', '緊急', '危険', '警戒']
-                
-                has_disaster_keyword = any(keyword in content_text for keyword in disaster_keywords)
-                logger.info(f"DEBUG: Has disaster keyword: {has_disaster_keyword}, Keywords found: {[kw for kw in disaster_keywords if kw in content_text]}")
-                
-                if has_disaster_keyword:
-                    # 災害キーワード含有記事は時間に関係なく強制再分析
-                    logger.info(f"DISASTER KEYWORD FOUND - Forcing re-analysis: {[kw for kw in disaster_keywords if kw in content_text]}")
-                    doc_ref.set({'processed_at': datetime.utcnow(), 'disaster_related': True})
-                    return False
-                
-                logger.info("DEBUG: Marking as duplicate (no disaster keywords or within 24h)")
+                logger.info("DEBUG: Exact hash match found - duplicate")
                 return True
             
+            # 2. 意味的類似度チェック（災害関連のみ）
+            disaster_keywords = ['災害', '地震', '津波', '台風', '洪水', '土砂', '避難', '警報', '注意報', 
+                               '大雨', '暴雨', '線状降水帯', '氾濫', '浸水', '落雷', '雷', '雨', '風', 
+                               '被害', '倒壊', '停電', '断水', '緊急', '危険', '警戒']
+            
+            has_disaster_keyword = any(keyword in content_text for keyword in disaster_keywords)
+            
+            if has_disaster_keyword:
+                logger.info(f"DEBUG: Disaster keywords found: {[kw for kw in disaster_keywords if kw in content_text]}")
+                
+                # 意味的類似度チェック
+                similar_content = await self._check_semantic_similarity(content_text, content_hash)
+                if similar_content:
+                    logger.info(f"DEBUG: Semantic similarity found - merging with existing content: {similar_content}")
+                    await self._merge_similar_content(content_hash, content_text, similar_content)
+                    return True
+            
+            # 3. 新規コンテンツとして保存
             logger.info("DEBUG: New content, not a duplicate")
-            doc_ref.set({'processed_at': datetime.utcnow()})
+            await self._save_content_with_embedding(content_hash, content_text, has_disaster_keyword)
             return False
             
         except Exception as e:
@@ -186,6 +192,165 @@ class DisasterDetectionAgent(BaseAgent):
             import traceback
             logger.error(f"Duplicate check traceback: {traceback.format_exc()}")
             return False
+    
+    async def _check_semantic_similarity(self, content_text: str, current_hash: str) -> str:
+        """
+        意味的類似度チェック
+        類似度がしきい値以上の既存コンテンツのハッシュを返す。なければNone。
+        """
+        try:
+            # 現在のコンテンツの埋め込みベクトル生成
+            current_embedding = await self._generate_embedding(content_text)
+            if not current_embedding:
+                logger.warning("Failed to generate embedding for current content")
+                return None
+            
+            # 設定された時間窓での災害関連コンテンツから類似度チェック
+            from datetime import timedelta
+            time_threshold = datetime.utcnow() - timedelta(hours=self.similarity_time_window_hours)
+            
+            query = self.gcp.firestore.collection('processed_content')\
+                .where('disaster_related', '==', True)\
+                .where('processed_at', '>=', time_threshold)\
+                .limit(50)  # パフォーマンス制限
+            
+            docs = query.stream()
+            
+            for doc in docs:
+                doc_data = doc.to_dict()
+                if doc.id == current_hash:
+                    continue
+                
+                stored_embedding = doc_data.get('embedding')
+                if not stored_embedding:
+                    continue
+                
+                # コサイン類似度計算
+                similarity = self._calculate_cosine_similarity(current_embedding, stored_embedding)
+                logger.info(f"DEBUG: Similarity with {doc.id[:8]}...: {similarity:.3f}")
+                
+                if similarity >= self.similarity_threshold:
+                    logger.info(f"High similarity found: {similarity:.3f} >= {self.similarity_threshold}")
+                    return doc.id
+            
+            return None
+            
+        except Exception as e:
+            logger.error(f"Semantic similarity check failed: {e}")
+            return None
+    
+    async def _generate_embedding(self, text: str) -> List[float]:
+        """
+        テキストの埋め込みベクトル生成
+        """
+        try:
+            from shared.utils.vertex_ai_client import get_vertex_ai_client
+            vertex_client = get_vertex_ai_client()
+            
+            # LangChainのVertexAIEmbeddingsを使用
+            embedding_result = await vertex_client.embeddings.aembed_query(text)
+            return embedding_result
+            
+        except Exception as e:
+            logger.error(f"Embedding generation failed: {e}")
+            return None
+    
+    def _calculate_cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """
+        コサイン類似度計算
+        """
+        try:
+            import numpy as np
+            
+            # ベクトルを正規化
+            vec1_np = np.array(vec1)
+            vec2_np = np.array(vec2)
+            
+            # コサイン類似度計算
+            dot_product = np.dot(vec1_np, vec2_np)
+            norm1 = np.linalg.norm(vec1_np)
+            norm2 = np.linalg.norm(vec2_np)
+            
+            if norm1 == 0 or norm2 == 0:
+                return 0.0
+            
+            similarity = dot_product / (norm1 * norm2)
+            return float(similarity)
+            
+        except Exception as e:
+            logger.error(f"Cosine similarity calculation failed: {e}")
+            return 0.0
+    
+    async def _save_content_with_embedding(self, content_hash: str, content_text: str, is_disaster_related: bool):
+        """
+        コンテンツを埋め込みベクトルとともに保存
+        """
+        try:
+            doc_data = {
+                'processed_at': datetime.utcnow(),
+                'disaster_related': is_disaster_related,
+                'content_preview': content_text[:200]  # デバッグ用プレビュー
+            }
+            
+            # 災害関連の場合のみ埋め込みベクトル生成・保存
+            if is_disaster_related:
+                embedding = await self._generate_embedding(content_text)
+                if embedding:
+                    doc_data['embedding'] = embedding
+                    logger.info(f"Saved content with embedding (vector size: {len(embedding)})")
+                else:
+                    logger.warning("Failed to generate embedding, saving without vector")
+            
+            doc_ref = self.gcp.firestore.collection('processed_content').document(content_hash)
+            doc_ref.set(doc_data)
+            
+        except Exception as e:
+            logger.error(f"Failed to save content with embedding: {e}")
+    
+    async def _merge_similar_content(self, new_hash: str, new_content: str, existing_hash: str):
+        """
+        類似コンテンツの統合処理
+        より詳細で信頼性の高いコンテンツを保持
+        """
+        try:
+            # 既存コンテンツ情報取得
+            existing_doc = self.gcp.firestore.collection('processed_content').document(existing_hash).get()
+            if not existing_doc.exists:
+                logger.warning(f"Existing document {existing_hash} not found for merging")
+                return
+            
+            existing_data = existing_doc.to_dict()
+            existing_preview = existing_data.get('content_preview', '')
+            
+            # より詳細なコンテンツを判定（文字数で簡易判定）
+            if len(new_content) > len(existing_preview):
+                logger.info(f"New content is more detailed ({len(new_content)} vs {len(existing_preview)} chars) - updating")
+                
+                # 新しいコンテンツで更新
+                await self._save_content_with_embedding(existing_hash, new_content, True)
+                
+                # 新ハッシュは既存ハッシュへの参照として保存
+                ref_data = {
+                    'processed_at': datetime.utcnow(),
+                    'disaster_related': True,
+                    'merged_to': existing_hash,
+                    'content_preview': new_content[:200]
+                }
+                self.gcp.firestore.collection('processed_content').document(new_hash).set(ref_data)
+            else:
+                logger.info(f"Existing content is more detailed - keeping original")
+                
+                # 新ハッシュは既存ハッシュへの参照として保存
+                ref_data = {
+                    'processed_at': datetime.utcnow(),
+                    'disaster_related': True,
+                    'merged_to': existing_hash,
+                    'content_preview': new_content[:200]
+                }
+                self.gcp.firestore.collection('processed_content').document(new_hash).set(ref_data)
+                
+        except Exception as e:
+            logger.error(f"Failed to merge similar content: {e}")
     
     def _create_disaster_event(self, entry, source: Dict[str, str], analysis: Dict[str, Any], content_hash: str) -> DisasterEvent:
         location_data = analysis.get("location", {})
