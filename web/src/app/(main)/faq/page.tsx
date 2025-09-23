@@ -18,7 +18,7 @@ const faqData: FAQItem[] = [
   {
     id: '1',
     question: 'WINDシステムとは何ですか？',
-    answer: 'WINDは、AI技術を活用した緊急対応支援システムです。リアルタイムで災害情報を収集・分析し、迅速な災害対応をサポートします。気象庁、NHK、SNSなどの情報源から自動的にデータを取得し、重要な情報を優先表示します。名前は「What I Need to Do」の略です。',
+    answer: 'WINDは、マルチAI Agentアーキテクチャを基盤とした災害情報システムです。本システムの特徴は、AI Agentによる災害情報の自動監視・要約機能と、個人のプロフィルに基づくパーソナライズされた情報提供にあります。名前は「What I Need to Do」の略です。',
     category: 'system'
   },
   {
