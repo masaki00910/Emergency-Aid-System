@@ -6,6 +6,8 @@ import { API } from '@/lib/api'
 import { useState, useEffect } from 'react'
 import type { Incident } from '@/types/incident'
 import type { Alert } from '@/types/alert'
+import { useLocation } from '@/contexts/LocationContext'
+import { formatDistance } from '@/lib/geocoding'
 
 // Time ago helper function
 function timeAgo(ts: string | number) {
@@ -19,9 +21,13 @@ function timeAgo(ts: string | number) {
 export default function DashboardPage() {
   const [counts, setCounts] = useState({ active: 0, total: 0 })
   const [focusIncidentId, setFocusIncidentId] = useState<string>()
-  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [rawIncidents, setRawIncidents] = useState<Incident[]>([]) // Raw data from API
+  const [incidents, setIncidents] = useState<Incident[]>([]) // Sorted data for display
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Location context
+  const { userLocation, isLoading: locationLoading, error: locationError } = useLocation()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,7 +48,8 @@ export default function DashboardPage() {
           return alertTime >= twentyFourHoursAgo
         })
 
-        setIncidents(incidentsData)
+        // Store raw data
+        setRawIncidents(incidentsData)
         setAlerts(recentActiveAlerts)
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
@@ -53,13 +60,42 @@ export default function DashboardPage() {
     }
 
     fetchData()
-  }, [])
+  }, []) // Only run once on mount
+
+  // Sort incidents when user location or raw data changes
+  useEffect(() => {
+    if (rawIncidents.length > 0) {
+      if (userLocation) {
+        const sortedIncidents = rawIncidents
+          .map(incident => ({
+            ...incident,
+            distance: incident.location ?
+              Math.sqrt(
+                Math.pow(userLocation.lat - incident.location.lat, 2) +
+                Math.pow(userLocation.lng - incident.location.lng, 2)
+              ) * 111 : Infinity // rough km conversion
+          }))
+          .sort((a, b) => (a as any).distance - (b as any).distance)
+        setIncidents(sortedIncidents)
+      } else {
+        setIncidents(rawIncidents)
+      }
+    }
+  }, [userLocation, rawIncidents]) // Re-sort when location changes
 
   return (
     <div className="p-4 sm:p-6 space-y-8 min-h-screen">
         <header className="flex items-center justify-between mb-2 animate-fade-in">
-          <h1 className="text-4xl font-bold gradient-text animate-float">災害情報ダッシュボード</h1>
-          {loading && (
+          <div>
+            <h1 className="text-4xl font-bold gradient-text animate-float">災害情報ダッシュボード</h1>
+            {userLocation && (
+              <p className="text-sm text-slate-600 mt-2">
+                📍 現在位置: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+                {locationError && <span className="text-orange-600 ml-2">⚠️ 位置情報取得に問題があります</span>}
+              </p>
+            )}
+          </div>
+          {(loading || locationLoading) && (
             <div className="text-sm text-zinc-600">
               読み込み中...
             </div>
@@ -70,7 +106,7 @@ export default function DashboardPage() {
           <div className="xl:col-span-8 space-y-8">
             <div className="rounded-2xl glass-effect card-hover p-6 shadow-lg animate-slide-up animate-stagger-1 pulse-glow">
               <IncidentMap
-                incidents={incidents}
+                incidents={rawIncidents}
                 onCountsChange={setCounts}
                 onSelect={setFocusIncidentId}
                 focusIncidentId={focusIncidentId}
@@ -106,10 +142,18 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {incidents.slice(0, 10).map(incident => (
+                    {incidents.slice(0, 10).map((incident: any) => (
                       <div
                         key={incident.id}
-                        onClick={() => setFocusIncidentId(incident.id)}
+                        onClick={() => {
+                          setFocusIncidentId(incident.id)
+                          // Find the incident in rawIncidents to ensure we have location data
+                          const targetIncident = rawIncidents.find(i => i.id === incident.id)
+                          if (targetIncident?.location) {
+                            // This will trigger the map to focus on this incident
+                            setFocusIncidentId(targetIncident.id)
+                          }
+                        }}
                         className={`p-4 rounded-xl glass-effect cursor-pointer transition-all duration-300 ${
                           focusIncidentId === incident.id
                             ? 'ring-2 ring-blue-500 shadow-lg'
@@ -122,11 +166,18 @@ export default function DashboardPage() {
                             <h3 className="font-semibold text-slate-900 line-clamp-2 mb-1">
                               {incident.title}
                             </h3>
-                            <p className="text-sm text-slate-600 mb-2">
-                              {incident.location?.admin}
-                            </p>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-sm text-slate-600">
+                                {incident.location?.admin}
+                              </p>
+                              {userLocation && incident.distance !== undefined && (
+                                <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-full">
+                                  📍 {formatDistance(incident.distance)}
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs text-slate-500">
-                              {timeAgo(incident.timestamp)}
+                              {timeAgo(incident.reported_at)}
                             </div>
                           </div>
                         </div>
