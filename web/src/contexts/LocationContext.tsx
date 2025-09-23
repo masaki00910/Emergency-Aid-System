@@ -1,10 +1,11 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { Location, GeolocationResult, getUserLocation, DEFAULT_LOCATION, isValidLocation } from '@/lib/geocoding'
+import { Location, GeolocationResult, getUserLocation, DEFAULT_LOCATION, isValidLocation, reverseGeocode } from '@/lib/geocoding'
 
 interface LocationContextType {
   userLocation: Location | null
+  locationName: string | null
   isLoading: boolean
   error: string | null
   accuracy: number | null
@@ -21,6 +22,7 @@ interface LocationProviderProps {
 
 export function LocationProvider({ children }: LocationProviderProps) {
   const [userLocation, setUserLocation] = useState<Location | null>(null)
+  const [locationName, setLocationName] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [accuracy, setAccuracy] = useState<number | null>(null)
@@ -40,8 +42,13 @@ export function LocationProvider({ children }: LocationProviderProps) {
         setAccuracy(result.accuracy)
         setHasPermission(true)
 
+        // Get location name
+        const name = await reverseGeocode(result.location)
+        setLocationName(name)
+
         // Store in localStorage for future sessions
         localStorage.setItem('userLocation', JSON.stringify(result.location))
+        localStorage.setItem('locationName', name || '')
         localStorage.setItem('locationTimestamp', Date.now().toString())
       } else {
         throw new Error('Invalid location coordinates received')
@@ -53,6 +60,8 @@ export function LocationProvider({ children }: LocationProviderProps) {
 
       // Fall back to default location (Tokyo)
       setUserLocation(DEFAULT_LOCATION)
+      const defaultName = await reverseGeocode(DEFAULT_LOCATION)
+      setLocationName(defaultName)
       console.warn('Using default location due to geolocation error:', errorMessage)
     } finally {
       setIsLoading(false)
@@ -62,6 +71,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
   useEffect(() => {
     // Check for stored location first
     const storedLocation = localStorage.getItem('userLocation')
+    const storedName = localStorage.getItem('locationName')
     const storedTimestamp = localStorage.getItem('locationTimestamp')
 
     if (storedLocation && storedTimestamp) {
@@ -75,6 +85,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
           const location = JSON.parse(storedLocation)
           if (isValidLocation(location)) {
             setUserLocation(location)
+            setLocationName(storedName || null)
             setHasPermission(true)
             return
           }
@@ -90,6 +101,7 @@ export function LocationProvider({ children }: LocationProviderProps) {
 
   const value: LocationContextType = {
     userLocation,
+    locationName,
     isLoading,
     error,
     accuracy,

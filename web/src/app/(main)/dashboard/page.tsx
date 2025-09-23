@@ -27,7 +27,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   // Location context
-  const { userLocation, isLoading: locationLoading, error: locationError } = useLocation()
+  const { userLocation, locationName, isLoading: locationLoading, error: locationError } = useLocation()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -90,7 +90,7 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-bold gradient-text animate-float">災害情報ダッシュボード</h1>
             {userLocation && (
               <p className="text-sm text-slate-600 mt-2">
-                📍 現在位置: {userLocation.lat.toFixed(4)}, {userLocation.lng.toFixed(4)}
+                📍 現在位置: {locationName || `緯度: ${userLocation.lat.toFixed(4)}, 経度: ${userLocation.lng.toFixed(4)}`}
                 {locationError && <span className="text-orange-600 ml-2">⚠️ 位置情報取得に問題があります</span>}
               </p>
             )}
