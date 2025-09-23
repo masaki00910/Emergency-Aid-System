@@ -238,16 +238,25 @@ export default function AlertDetailPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="text-center">読み込み中...</div>
+      <div className="p-4 sm:p-6 space-y-8 min-h-screen">
+        <div className="text-center py-16 text-slate-600">
+          <div className="inline-flex items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
+            <span className="text-lg">読み込み中...</span>
+          </div>
+        </div>
       </div>
     )
   }
 
   if (!alert) {
     return (
-      <div className="p-6">
-        <div className="text-center">アラートが見つかりません</div>
+      <div className="p-4 sm:p-6 space-y-8 min-h-screen">
+        <div className="text-center py-16 text-slate-500">
+          <div className="text-6xl mb-4">⚠️</div>
+          <div className="text-xl font-medium mb-2">アラートが見つかりません</div>
+          <div className="text-sm">指定されたアラートが存在しないか、アクセスできません</div>
+        </div>
       </div>
     )
   }
@@ -272,36 +281,47 @@ export default function AlertDetailPage() {
   }] : []
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-8 min-h-screen">
         {/* Header */}
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold mb-2">詳細</h1>
+        <header className="mb-8 animate-fade-in">
+          <h1 className="text-4xl font-bold gradient-text animate-float mb-6">アラート詳細</h1>
           
           {/* Alert Status Banner */}
-          <div className={`border-l-4 p-4 mb-4 ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-red-50 border-red-500' : 'bg-gray-50 border-gray-400'}`}>
+          <div className={`rounded-3xl glass-effect shadow-2xl p-8 card-hover border-0 animate-slide-up ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-gradient-to-r from-red-50 to-orange-50' : 'bg-gradient-to-r from-gray-50 to-slate-50'}`}>
             <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={`px-2 py-1 rounded text-sm font-semibold ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-red-500 text-white' : 'bg-gray-400 text-white'}`}>
-                    {alert.level === 'warning' || alert.level === 'emergency' ? 'Active Alert' : 'non-Active Alert'}
-                  </span>
-                  <span className="text-2xl">{getHazardIcon(alert.hazard)}</span>
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-gradient-to-br from-red-400 to-red-600' : 'bg-gradient-to-br from-gray-400 to-gray-600'}`}>
+                  <span className="text-3xl text-white">{getHazardIcon(alert.hazard)}</span>
                 </div>
-                <div className="text-xl font-bold text-red-800">{alert.title}</div>
-                <div className="text-sm text-red-600">
-                  {new Date(alert.startedAt).toLocaleString('ja-JP')}
+                <div>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className={`px-4 py-2 rounded-xl font-semibold shadow-md ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'}`}>
+                      {alert.level === 'warning' || alert.level === 'emergency' ? 'Active Alert' : 'non-Active Alert'}
+                    </span>
+                  </div>
+                  <div className={`text-2xl font-bold ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent' : 'text-gray-800'}`}>
+                    {alert.title}
+                  </div>
+                  <div className={`text-sm font-medium ${alert.level === 'warning' || alert.level === 'emergency' ? 'text-red-600' : 'text-gray-600'}`}>
+                    🕒 {new Date(alert.startedAt).toLocaleString('ja-JP')}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-8">
             {/* Map */}
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="text-lg font-semibold mb-4">位置情報</h3>
+            <div className="rounded-3xl glass-effect shadow-2xl p-8 card-hover border-0 animate-slide-up animate-stagger-1">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-lg text-white">📍</span>
+                </div>
+                <h3 className="text-xl font-bold gradient-text">位置情報</h3>
+              </div>
               <div className="h-64 bg-gray-100 rounded-lg overflow-hidden">
                 {mapIncidents.length > 0 ? (
                   <IncidentMap
@@ -321,16 +341,26 @@ export default function AlertDetailPage() {
             </div>
 
             {/* Location Details */}
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="text-lg font-semibold mb-4">地域・エリア</h3>
-              <div className="text-sm text-gray-600 leading-relaxed">
+            <div className="rounded-3xl glass-effect shadow-2xl p-8 card-hover border-0 animate-slide-up animate-stagger-2">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-lg text-white">🗾</span>
+                </div>
+                <h3 className="text-xl font-bold gradient-text">地域・エリア</h3>
+              </div>
+              <div className="text-lg text-slate-700 leading-relaxed">
                 {alert.area}
               </div>
             </div>
 
             {/* Tags */}
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="text-lg font-semibold mb-4">タグ</h3>
+            <div className="rounded-3xl glass-effect shadow-2xl p-8 card-hover border-0 animate-slide-up animate-stagger-3">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-lg text-white">🏷️</span>
+                </div>
+                <h3 className="text-xl font-bold gradient-text">タグ</h3>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {(() => {
                   // Use same hazard mapping as other screens
@@ -374,8 +404,13 @@ export default function AlertDetailPage() {
             </div>
 
             {/* Alert Overview */}
-            <div className="bg-white rounded-xl border p-6">
-              <h3 className="text-lg font-semibold mb-4">アラート概要</h3>
+            <div className="rounded-3xl glass-effect shadow-2xl p-8 card-hover border-0 animate-slide-up animate-stagger-4">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-lg text-white">📋</span>
+                </div>
+                <h3 className="text-xl font-bold gradient-text">アラート概要</h3>
+              </div>
               <div className="space-y-4 text-sm">
                 <p>
                   {alert.description || `${alert.area}で${alert.hazard}に関するアラートが発表されています。`}
@@ -413,10 +448,15 @@ export default function AlertDetailPage() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="space-y-8 animate-slide-up animate-stagger-2">
             {/* Timeline */}
-            <div className="bg-yellow-50 rounded-xl border border-yellow-200 p-4">
-              <h3 className="text-lg font-semibold mb-4">Timeline</h3>
+            <div className="rounded-3xl glass-effect shadow-2xl p-6 card-hover border-0 bg-gradient-to-br from-yellow-50 to-amber-50">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-amber-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-lg text-white">📅</span>
+                </div>
+                <h3 className="text-xl font-bold gradient-text">Timeline</h3>
+              </div>
               <div className="space-y-3 max-h-64 overflow-y-auto">
                 {timeline.map((event, index) => (
                   <div key={event.id} className="text-xs">
@@ -434,9 +474,16 @@ export default function AlertDetailPage() {
 
             {/* AI Generated FAQ */}
             {alertFAQ && (
-              <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
-                <h3 className="text-lg font-semibold mb-4 text-blue-800">What I need to do - 私がすべきこと -</h3>
-                <p className="text-xs text-blue-600 mb-4">以下から私が今すべきことを確認できます</p>
+              <div className="rounded-3xl glass-effect shadow-2xl p-6 card-hover border-0 bg-gradient-to-br from-blue-50 to-cyan-50">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-cyan-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <span className="text-xl text-white">🤖</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">私がすべきこと</h3>
+                    <p className="text-xs text-blue-600">AI生成の行動指針</p>
+                  </div>
+                </div>
                 
                 <div className="space-y-3">
                   {alertFAQ.faqs
@@ -490,8 +537,13 @@ export default function AlertDetailPage() {
                 </div>
                 
                 {/* Chat Interface */}
-                <div className="mt-4 pt-4 border-t border-blue-200">
-                  <h4 className="text-sm font-medium text-blue-800 mb-3">この災害について質問する</h4>
+                <div className="mt-6 pt-6 border-t border-blue-200">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center">
+                      <span className="text-sm text-white">💬</span>
+                    </div>
+                    <h4 className="text-lg font-bold bg-gradient-to-r from-green-600 to-green-800 bg-clip-text text-transparent">この災害について質問する</h4>
+                  </div>
                   <div className="space-y-3">
                     <div className="flex gap-2">
                       <input
@@ -500,13 +552,13 @@ export default function AlertDetailPage() {
                         onChange={handleQuestionChange}
                         onKeyPress={handleQuestionKeyPress}
                         placeholder="例: 避難のタイミングは？"
-                        className="flex-1 px-3 py-2 text-sm border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="flex-1 px-4 py-3 glass-effect rounded-xl border-0 shadow-md focus:ring-2 focus:ring-green-500 text-sm"
                         disabled={isAsking}
                       />
                       <button
                         onClick={handleAskQuestion}
                         disabled={!chatQuestion.trim() || isAsking}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                        className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white text-sm rounded-xl hover:shadow-lg disabled:bg-gray-300 disabled:cursor-not-allowed transition-all duration-300 font-semibold"
                       >
                         {isAsking ? '...' : '質問'}
                       </button>
