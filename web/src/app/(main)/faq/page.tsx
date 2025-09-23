@@ -17,8 +17,8 @@ interface FAQItem {
 const faqData: FAQItem[] = [
   {
     id: '1',
-    question: 'WINDシステムとは何ですか？',
-    answer: 'WINDは、「What I Need to Do（私がすべきこと）」の略で、AI技術を活用した災害対応支援システムです。リアルタイムで災害情報を収集・分析し、迅速な災害対応をサポートします。気象庁、NHK、SNSなどの情報源から自動的にデータを取得し、重要な情報を優先表示します。',
+    question: 'Aigisシステムとは何ですか？',
+    answer: 'Aigisは、AI技術を活用した緊急対応支援システムです。リアルタイムで災害情報を収集・分析し、迅速な災害対応をサポートします。気象庁、NHK、SNSなどの情報源から自動的にデータを取得し、重要な情報を優先表示します。名前はギリシャ神話の守護神の盾「アイギス」に由来します。',
     category: 'system'
   },
   {
@@ -131,24 +131,29 @@ export default function FAQPage() {
 
   if (loading) {
     return (
-      <div className="bg-zinc-50 text-zinc-900 p-4 sm:p-6 min-h-full">
+      <div className="p-4 sm:p-6 space-y-8 min-h-screen">
         <div className="max-w-4xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold mb-2">よくある質問</h1>
-            <p className="text-zinc-600">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
+          <div className="mb-8 animate-fade-in">
+            <h1 className="text-5xl font-bold gradient-text animate-float mb-4">よくある質問</h1>
+            <p className="text-slate-600 text-lg">Aigisシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
           </div>
-          <LoadingSpinner size="lg" text="FAQを読み込み中..." />
+          <div className="text-center py-16 text-slate-600">
+            <div className="inline-flex items-center gap-3">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
+              <span className="text-lg">FAQを読み込み中...</span>
+            </div>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-zinc-50 text-zinc-900 p-4 sm:p-6 min-h-full">
+    <div className="p-4 sm:p-6 space-y-8 min-h-screen">
       <div className="max-w-4xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">よくある質問</h1>
-          <p className="text-zinc-600">WINDシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
+        <div className="mb-8 animate-fade-in">
+          <h1 className="text-5xl font-bold gradient-text animate-float mb-4">よくある質問</h1>
+          <p className="text-slate-600 text-lg">Aigisシステムに関してよくお寄せいただく質問と回答をまとめました。</p>
         </div>
 
         {error && (
@@ -165,10 +170,17 @@ export default function FAQPage() {
 
         {/* 現在アクティブなAlert関連のAI FAQ */}
         {aiFAQs.length > 0 && (
-          <div className="mb-12">
+          <div className="mb-12 animate-slide-up animate-stagger-1">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold mb-2 text-red-600">🚨 現在の状況関連行動指針</h2>
-              <p className="text-zinc-600">現在発令されている警報に対するAI生成行動指針です。</p>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-red-400 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <span className="text-xl">🚨</span>
+                </div>
+                <div>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">現在の状況関連行動指針</h2>
+                  <p className="text-slate-600">現在発令されている警報に対するAI生成行動指針です。</p>
+                </div>
+              </div>
             </div>
 
             {aiFAQs.map(alertFAQ => (
@@ -242,14 +254,21 @@ export default function FAQPage() {
         )}
 
         {/* システム一般FAQ */}
-        <div>
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold mb-2">システム関連FAQ</h2>
-            <p className="text-zinc-600">WINDシステムの一般的な質問と回答です。</p>
+        <div className="animate-slide-up animate-stagger-2">
+          <div className="mb-8">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-xl">❓</span>
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold gradient-text">システム関連FAQ</h2>
+                <p className="text-slate-600">Aigisシステムの一般的な質問と回答です。</p>
+              </div>
+            </div>
           </div>
 
         {/* 検索とフィルター */}
-        <div className="mb-8 space-y-4">
+        <div className="mb-8 space-y-6">
           {/* 検索バー */}
           <div>
             <input
@@ -257,18 +276,18 @@ export default function FAQPage() {
               placeholder="質問を検索..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-3 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+              className="w-full px-6 py-4 glass-effect rounded-2xl border-0 shadow-lg focus:ring-2 focus:ring-purple-500 text-lg"
             />
           </div>
 
           {/* カテゴリフィルター */}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-3">
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md ${
                 selectedCategory === 'all'
-                  ? 'bg-zinc-900 text-white'
-                  : 'bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50'
+                  ? 'btn-gradient text-white'
+                  : 'glass-effect text-slate-700 hover:shadow-lg'
               }`}
             >
               すべて
@@ -277,10 +296,10 @@ export default function FAQPage() {
               <button
                 key={key}
                 onClick={() => setSelectedCategory(key)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                className={`px-6 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md ${
                   selectedCategory === key
-                    ? 'bg-zinc-900 text-white'
-                    : 'bg-white border border-zinc-300 text-zinc-700 hover:bg-zinc-50'
+                    ? 'btn-gradient text-white'
+                    : 'glass-effect text-slate-700 hover:shadow-lg'
                 }`}
               >
                 {cat.label}
@@ -290,13 +309,15 @@ export default function FAQPage() {
         </div>
 
         {/* FAQ一覧 */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {filteredFAQs.length > 0 ? (
-            filteredFAQs.map(faq => (
-              <div key={faq.id} className="bg-white rounded-lg border border-zinc-200 overflow-hidden">
+            filteredFAQs.map((faq, index) => (
+              <div key={faq.id} className={`rounded-3xl glass-effect shadow-xl overflow-hidden border-0 animate-slide-up ${
+                index === 0 ? 'animate-stagger-1' : index === 1 ? 'animate-stagger-2' : index === 2 ? 'animate-stagger-3' : 'animate-stagger-4'
+              }`}>
                 <button
                   onClick={() => toggleExpanded(faq.id)}
-                  className="w-full px-6 py-4 text-left hover:bg-zinc-50 transition-colors"
+                  className="w-full px-8 py-6 text-left hover:bg-white/50 transition-all duration-300"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -330,8 +351,8 @@ export default function FAQPage() {
                 </button>
 
                 {expandedItems.has(faq.id) && (
-                  <div className="px-6 pb-4 border-t border-zinc-100">
-                    <div className="pt-4 text-zinc-700 leading-relaxed">
+                  <div className="px-8 pb-6 border-t border-white/30 bg-white/20">
+                    <div className="pt-6 text-slate-700 leading-relaxed text-lg">
                       {faq.answer}
                     </div>
                   </div>
@@ -339,12 +360,12 @@ export default function FAQPage() {
               </div>
             ))
           ) : (
-            <div className="bg-white rounded-lg border p-8 text-center">
-              <div className="text-zinc-400 text-4xl mb-4">🔍</div>
-              <h3 className="text-lg font-medium text-zinc-900 mb-2">
+            <div className="rounded-3xl glass-effect shadow-xl p-12 text-center border-0">
+              <div className="text-6xl mb-6">🔍</div>
+              <h3 className="text-2xl font-bold gradient-text mb-4">
                 該当する質問が見つかりません
               </h3>
-              <p className="text-zinc-600">
+              <p className="text-slate-600 text-lg">
                 検索条件を変更するか、カテゴリを「すべて」に設定してお試しください
               </p>
             </div>
@@ -352,18 +373,25 @@ export default function FAQPage() {
         </div>
 
         {/* お問い合わせ */}
-        <div className="mt-12 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-6 border border-blue-200">
-          <h2 className="text-xl font-semibold text-zinc-900 mb-2">
-            他にご質問がございますか？
-          </h2>
-          <p className="text-zinc-700 mb-4">
-            上記で解決しない問題や、システムに関するその他のご質問がございましたら、お気軽にお問い合わせください。
-          </p>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+        <div className="mt-16 rounded-3xl glass-effect shadow-2xl p-8 border-0 animate-slide-up animate-stagger-4">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-xl">💬</span>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold gradient-text">
+                他にご質問がございますか？
+              </h2>
+              <p className="text-slate-600">
+                上記で解決しない問題や、システムに関するその他のご質問がございましたら、お気軽にお問い合わせください。
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <button className="px-8 py-4 btn-gradient text-white rounded-2xl hover:shadow-lg transition-all duration-300 font-semibold">
               お問い合わせ
             </button>
-            <button className="px-6 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-colors">
+            <button className="px-8 py-4 glass-effect text-blue-600 rounded-2xl hover:shadow-lg transition-all duration-300 font-semibold border-0">
               システムガイド
             </button>
           </div>

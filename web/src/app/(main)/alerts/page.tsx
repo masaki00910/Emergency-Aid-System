@@ -179,32 +179,32 @@ export default function AlertsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
-        <header>
-          <h1 className="text-2xl font-bold mb-6">サマリ</h1>
+    <div className="p-4 sm:p-6 space-y-8 min-h-screen">
+        <header className="animate-fade-in">
+          <h1 className="text-4xl font-bold gradient-text animate-float mb-6">アラートサマリ</h1>
           
           {/* フィルター */}
-          <div className="flex flex-wrap gap-4 mb-6">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap gap-4 mb-8 animate-slide-up animate-stagger-1">
+            <div className="flex items-center gap-3">
               <input
                 type="date"
                 placeholder="Start date"
-                className="px-3 py-2 border rounded-lg"
+                className="px-4 py-3 glass-effect rounded-xl border-0 shadow-md focus:ring-2 focus:ring-purple-500"
                 value={dateRange.start}
                 onChange={(e) => setDateRange({...dateRange, start: e.target.value})}
               />
-              <span>-</span>
+              <span className="text-slate-600 font-medium">-</span>
               <input
                 type="date"
                 placeholder="End date"
-                className="px-3 py-2 border rounded-lg"
+                className="px-4 py-3 glass-effect rounded-xl border-0 shadow-md focus:ring-2 focus:ring-purple-500"
                 value={dateRange.end}
                 onChange={(e) => setDateRange({...dateRange, end: e.target.value})}
               />
             </div>
-            
+
             <select
-              className="px-4 py-2 border rounded-lg"
+              className="px-6 py-3 glass-effect rounded-xl border-0 shadow-md focus:ring-2 focus:ring-purple-500 font-medium"
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value as AlertTag)}
             >
@@ -216,11 +216,11 @@ export default function AlertsPage() {
               <option value="tsunami">津波</option>
               <option value="other">その他</option>
             </select>
-            
+
             <input
               type="text"
               placeholder="Search..."
-              className="px-4 py-2 border rounded-lg flex-1 min-w-[200px]"
+              className="px-6 py-3 glass-effect rounded-xl border-0 shadow-md focus:ring-2 focus:ring-purple-500 flex-1 min-w-[200px] text-lg"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -228,43 +228,49 @@ export default function AlertsPage() {
         </header>
 
         {/* サマリーカード */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div className="bg-white rounded-xl border p-6 text-center">
-            <div className="text-5xl font-bold mb-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 animate-slide-up animate-stagger-2">
+          <div className="rounded-3xl glass-effect p-8 text-center shadow-2xl card-hover border-0">
+            <div className="w-16 h-16 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
+              <span className="text-2xl">🚨</span>
+            </div>
+            <div className="text-5xl font-black bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent mb-2">
               {loading ? '...' : activeCount}
             </div>
-            <div className="text-lg">Active Alerts</div>
+            <div className="text-xl font-bold gradient-text">Active Alerts</div>
           </div>
-          <div className="bg-white rounded-xl border p-6 text-center">
-            <div className="text-5xl font-bold mb-2">
+          <div className="rounded-3xl glass-effect p-8 text-center shadow-2xl card-hover border-0">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-xl">
+              <span className="text-2xl">📊</span>
+            </div>
+            <div className="text-5xl font-black bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent mb-2">
               {loading ? '...' : todayCount}
             </div>
-            <div className="text-lg">Events Today</div>
+            <div className="text-xl font-bold gradient-text">Events Today</div>
           </div>
         </div>
 
         {/* アラートフィルター */}
-        <div className="bg-gray-100 rounded-lg p-1 mb-6">
-          <div className="flex gap-1">
+        <div className="glass-effect rounded-2xl p-2 mb-8 shadow-lg animate-slide-up animate-stagger-3">
+          <div className="flex gap-2">
             <button
-              className={`flex-1 px-4 py-2 rounded-md transition-all ${
-                selectedLevel === 'all' ? 'bg-white shadow' : ''
+              className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                selectedLevel === 'all' ? 'btn-gradient text-white shadow-lg' : 'text-slate-600 hover:bg-slate-100/50'
               }`}
               onClick={() => setSelectedLevel('all')}
             >
               🔍 すべて
             </button>
             <button
-              className={`flex-1 px-4 py-2 rounded-md transition-all ${
-                selectedLevel === 'Active' ? 'bg-white shadow' : ''
+              className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                selectedLevel === 'Active' ? 'bg-gradient-to-r from-red-500 to-red-600 text-white shadow-lg' : 'text-slate-600 hover:bg-slate-100/50'
               }`}
               onClick={() => setSelectedLevel('Active')}
             >
               🚨 Activeのみ
             </button>
             <button
-              className={`flex-1 px-4 py-2 rounded-md transition-all ${
-                selectedLevel === 'non-Active' ? 'bg-white shadow' : ''
+              className={`flex-1 px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                selectedLevel === 'non-Active' ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg' : 'text-slate-600 hover:bg-slate-100/50'
               }`}
               onClick={() => setSelectedLevel('non-Active')}
             >
@@ -274,10 +280,10 @@ export default function AlertsPage() {
         </div>
 
         {/* 地域・エリア */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">地域・エリア</label>
+        <div className="mb-8 animate-slide-up animate-stagger-4">
+          <label className="block text-lg font-bold gradient-text mb-3">🗾 地域・エリア</label>
           <select
-            className="w-full px-4 py-2 border rounded-lg bg-white"
+            className="w-full px-6 py-4 glass-effect rounded-2xl border-0 shadow-lg focus:ring-2 focus:ring-purple-500 text-lg font-medium"
             value={selectedRegion}
             onChange={(e) => setSelectedRegion(e.target.value)}
           >
@@ -294,16 +300,27 @@ export default function AlertsPage() {
         </div>
 
         {/* アラート一覧 */}
-        <div className="space-y-4">
+        <div className="space-y-6">
           {loading ? (
-            <div className="text-center py-8 text-zinc-600">読み込み中...</div>
+            <div className="text-center py-16 text-slate-600">
+              <div className="inline-flex items-center gap-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-600"></div>
+                <span className="text-lg">読み込み中...</span>
+              </div>
+            </div>
           ) : filteredAlerts.length === 0 ? (
-            <div className="text-center py-8 text-zinc-600">該当するアラートはありません</div>
+            <div className="text-center py-16 text-slate-500">
+              <div className="text-6xl mb-4">🌅</div>
+              <div className="text-xl font-medium mb-2">該当するアラートはありません</div>
+              <div className="text-sm">条件を変更して再度お試しください</div>
+            </div>
           ) : (
             filteredAlerts.map((alert, index) => (
             <Link key={alert.id} href={`/alerts/${alert.id}`}>
               <div
-                className="rounded-xl border border-slate-200 p-4 bg-white hover:bg-slate-50 hover:shadow-md transition-all duration-300 cursor-pointer"
+                className={`rounded-3xl glass-effect p-6 shadow-xl card-hover border-0 cursor-pointer animate-slide-up ${
+                  index === 0 ? 'animate-stagger-1' : index === 1 ? 'animate-stagger-2' : index === 2 ? 'animate-stagger-3' : 'animate-stagger-4'
+                }`}
               >
                 <div className="flex items-start gap-4">
                   {/* Get hazard info for consistent styling - same as dashboard */}
@@ -371,25 +388,30 @@ export default function AlertsPage() {
         </div>
 
         {/* FAQ */}
-        <div className="bg-white rounded-xl border p-6 mt-8">
-          <h2 className="text-xl font-bold mb-4">FAQ</h2>
-          <div className="space-y-3">
-            <details className="border-b pb-3">
-              <summary className="cursor-pointer font-medium">なぜ災害への準備が必要？</summary>
-              <p className="mt-2 text-sm text-gray-600">
-                急な自然災害は避難を遅らせ、人命や財産に深刻な被害をもたらす可能性があります。
+        <div className="rounded-3xl glass-effect shadow-2xl p-8 mt-12 border-0 animate-slide-up animate-stagger-4">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-xl">❓</span>
+            </div>
+            <h2 className="text-2xl font-bold gradient-text">よくある質問</h2>
+          </div>
+          <div className="space-y-4">
+            <details className="glass-effect rounded-xl p-4 cursor-pointer group">
+              <summary className="font-semibold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">なぜ災害への準備が必要？</summary>
+              <p className="mt-3 text-slate-600 leading-relaxed pl-4 border-l-4 border-blue-200">
+                急な自然災害は避難を遅らせ、人命や財産に深刻な被害をもたらす可能性があります。事前の準備により、被害を最小限に抑えることができます。
               </p>
             </details>
-            <details className="border-b pb-3">
-              <summary className="cursor-pointer font-medium">大雨時の備えの注意点は？</summary>
-              <p className="mt-2 text-sm text-gray-600">
-                最新の気象情報を確認し、避難場所への経路を確認しておくことが重要です。
+            <details className="glass-effect rounded-xl p-4 cursor-pointer group">
+              <summary className="font-semibold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">大雨時の備えの注意点は？</summary>
+              <p className="mt-3 text-slate-600 leading-relaxed pl-4 border-l-4 border-blue-200">
+                最新の気象情報を確認し、避難場所への経路を確認しておくことが重要です。また、非常用持ち出し袋の準備も欠かせません。
               </p>
             </details>
-            <details className="border-b pb-3">
-              <summary className="cursor-pointer font-medium">土砂災害への備え方は？</summary>
-              <p className="mt-2 text-sm text-gray-600">
-                斜面や崖の近くに住んでいる場合は、早めの避難を心がけ、避難場所を事前に確認しておきましょう。
+            <details className="glass-effect rounded-xl p-4 cursor-pointer group">
+              <summary className="font-semibold text-lg text-slate-800 group-hover:text-blue-600 transition-colors">土砂災害への備え方は？</summary>
+              <p className="mt-3 text-slate-600 leading-relaxed pl-4 border-l-4 border-blue-200">
+                斜面や崖の近くに住んでいる場合は、早めの避難を心がけ、避難場所を事前に確認しておきましょう。雨量や地盤の状況に常に注意を払うことが大切です。
               </p>
             </details>
           </div>
