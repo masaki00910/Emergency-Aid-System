@@ -95,9 +95,8 @@ export default function AlertsPage() {
     }
     const hazardInfo = hazardMapping[incident.type] || hazardMapping['other']
     
-    // Use EXACT same active condition as card display
-    const isActive = incident.status === 'active' || incident.is_active === true
-    const active = isActive && incident.severity !== 'low' && hazardInfo.name !== 'その他' && hazardInfo.name !== ''
+    // Active if severity is 'medium' or 'high' only
+    const active = incident.severity === 'medium' || incident.severity === 'high'
     
     return {
       id: incident.id,

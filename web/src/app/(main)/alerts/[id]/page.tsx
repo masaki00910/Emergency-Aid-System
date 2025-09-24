@@ -305,8 +305,8 @@ export default function AlertDetailPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-3 mb-2">
-                    <span className={`px-4 py-2 rounded-xl font-semibold shadow-md ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'}`}>
-                      {alert.level === 'warning' || alert.level === 'emergency' ? 'Active Alert' : 'non-Active Alert'}
+                    <span className={`px-4 py-2 rounded-xl font-semibold shadow-md ${(incident?.severity === 'medium' || incident?.severity === 'high') ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'}`}>
+                      {(incident?.severity === 'medium' || incident?.severity === 'high') ? 'Active Alert' : 'non-Active Alert'}
                     </span>
                   </div>
                   <div className={`text-2xl font-bold ${alert.level === 'warning' || alert.level === 'emergency' ? 'bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent' : 'text-gray-800'}`}>
@@ -386,7 +386,7 @@ export default function AlertDetailPage() {
                   }
                   const hazardInfo = hazardMapping[alert.hazard] || hazardMapping['other']
                   const severity = incident?.severity || alert.level
-                  const isActive = alert.level === 'warning' || alert.level === 'emergency'
+                  const isActive = incident?.severity === 'medium' || incident?.severity === 'high'
                   
                   return (
                     <>
