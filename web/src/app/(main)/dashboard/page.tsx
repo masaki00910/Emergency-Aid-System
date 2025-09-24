@@ -48,9 +48,17 @@ export default function DashboardPage() {
           return alertTime >= twentyFourHoursAgo
         })
 
-        // Store raw data
+        // Filter incidents for last 24 hours for Events Today count
+        const recentIncidents = incidentsData.filter(incident => {
+          const incidentTime = incident.reported_at ? new Date(incident.reported_at).getTime() : 0
+          return incidentTime >= twentyFourHoursAgo
+        })
+
+        // Store raw data (keep all incidents for map display)
         setRawIncidents(incidentsData)
         setAlerts(recentActiveAlerts)
+        // Store filtered incidents for Events Today count
+        setIncidents(recentIncidents)
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error)
         // Fallback to empty arrays or show error state
@@ -62,26 +70,22 @@ export default function DashboardPage() {
     fetchData()
   }, []) // Only run once on mount
 
-  // Sort incidents when user location or raw data changes
+  // Sort incidents when user location changes (use current incidents, not rawIncidents)
   useEffect(() => {
-    if (rawIncidents.length > 0) {
-      if (userLocation) {
-        const sortedIncidents = rawIncidents
-          .map(incident => ({
-            ...incident,
-            distance: incident.location ?
-              Math.sqrt(
-                Math.pow(userLocation.lat - incident.location.lat, 2) +
-                Math.pow(userLocation.lng - incident.location.lng, 2)
-              ) * 111 : Infinity // rough km conversion
-          }))
-          .sort((a, b) => (a as any).distance - (b as any).distance)
-        setIncidents(sortedIncidents)
-      } else {
-        setIncidents(rawIncidents)
-      }
+    if (incidents.length > 0 && userLocation) {
+      const sortedIncidents = incidents
+        .map(incident => ({
+          ...incident,
+          distance: incident.location ?
+            Math.sqrt(
+              Math.pow(userLocation.lat - incident.location.lat, 2) +
+              Math.pow(userLocation.lng - incident.location.lng, 2)
+            ) * 111 : Infinity // rough km conversion
+        }))
+        .sort((a, b) => (a as any).distance - (b as any).distance)
+      setIncidents(sortedIncidents)
     }
-  }, [userLocation, rawIncidents]) // Re-sort when location changes
+  }, [userLocation]) // Only re-sort when location changes, not when incidents change
 
   return (
     <div className="p-4 sm:p-6 space-y-8 min-h-screen">

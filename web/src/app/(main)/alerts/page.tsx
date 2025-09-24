@@ -5,7 +5,6 @@ import Link from 'next/link'
 import { API } from '@/lib/api'
 import type { Alert } from '@/types/alert'
 import type { Incident } from '@/types/incident'
-import type { FeedItem } from '@/types/feed'
 
 type AlertLevel = 'Active' | 'non-Active' | 'all'
 type AlertTag = 'flood' | 'earthquake' | 'landslide' | 'typhoon' | 'tsunami' | 'other' | 'all'
@@ -18,17 +17,16 @@ export default function AlertsPage() {
   const [dateRange, setDateRange] = useState({ start: '', end: '' })
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [incidents, setIncidents] = useState<Incident[]>([])
-  const [feeds, setFeeds] = useState<FeedItem[]>([])
+  const [feeds, setFeeds] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true)
-        const [alertsData, incidentsData, feedsData] = await Promise.all([
+        const [alertsData, incidentsData] = await Promise.all([
           API.getAlerts(true), // active alerts only - same as dashboard
-          API.getIncidents(),
-          API.getFeeds(50)
+          API.getIncidents()
         ])
         
         // Filter for 24 hours only - same as dashboard
@@ -40,19 +38,17 @@ export default function AlertsPage() {
           const alertTime = alert.startedAt
           return alertTime >= twentyFourHoursAgo
         })
-        
-        // Filter feeds for last 24 hours - same as dashboard
-        const recentFeeds = feedsData.filter(feed => {
-          const feedTime = typeof feed.publishedAt === 'string' 
-            ? new Date(feed.publishedAt).getTime() 
-            : feed.publishedAt
-          return feedTime >= twentyFourHoursAgo
+
+        // Filter incidents for last 24 hours - same as dashboard
+        const recentIncidents = incidentsData.filter(incident => {
+          const incidentTime = incident.reported_at ? new Date(incident.reported_at).getTime() : 0
+          return incidentTime >= twentyFourHoursAgo
         })
 
         setAlerts(recentActiveAlerts)
-        setIncidents(incidentsData)
-        // Store feeds for Events Today count
-        setFeeds(recentFeeds)
+        setIncidents(recentIncidents) // Use 24h filtered incidents for consistency
+        // Store filtered incidents for Events Today count
+        setFeeds(recentIncidents) // Reuse feeds state to store recent incidents
       } catch (error) {
         console.error('Failed to fetch alerts data:', error)
       } finally {
@@ -133,9 +129,9 @@ export default function AlertsPage() {
     return levelMatch && tagMatch && regionMatch && searchMatch
   })
 
-  // Use same count logic as dashboard
-  const activeCount = alerts.length // alerts are already filtered for 24h and active status
-  const todayCount = feeds.length // feeds are already filtered for 24h
+  // Use same count logic as dashboard - use actual alerts API result
+  const activeCount = alerts.length // Use actual alerts API result - same as dashboard
+  const todayCount = incidents.length // incidents state now contains recent incidents (24h filtered) - same as dashboard
 
   const getSeverityColor = (severity?: string) => {
     switch(severity) {
