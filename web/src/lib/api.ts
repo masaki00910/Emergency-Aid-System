@@ -401,9 +401,18 @@ export class RestApiService {
 
       if (activeOnly) {
         alerts = alerts.filter(alert => {
-          // Consider disasters from last 24 hours as "active"
+          // Get the original disaster data to check severity
+          const disaster = data.disasters.find((d: any) => d.id === alert.id)
+          if (!disaster) return false
+
+          // Active if severity is 'medium' or 'high' only
+          const isActive = disaster.severity === 'medium' || disaster.severity === 'high'
+
+          // Must be within 24 hours
           const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000
-          return alert.startedAt > oneDayAgo
+          const recentlyReported = alert.startedAt > oneDayAgo
+
+          return isActive && recentlyReported
         })
       }
 
