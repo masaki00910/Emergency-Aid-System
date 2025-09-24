@@ -372,30 +372,6 @@ export default function FAQPage() {
           )}
         </div>
 
-        {/* お問い合わせ */}
-        <div className="mt-16 rounded-3xl glass-effect shadow-2xl p-8 border-0 animate-slide-up animate-stagger-4">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-xl">💬</span>
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold gradient-text">
-                他にご質問がございますか？
-              </h2>
-              <p className="text-slate-600">
-                上記で解決しない問題や、システムに関するその他のご質問がございましたら、お気軽にお問い合わせください。
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <button className="px-8 py-4 btn-gradient text-white rounded-2xl hover:shadow-lg transition-all duration-300 font-semibold">
-              お問い合わせ
-            </button>
-            <button className="px-8 py-4 glass-effect text-blue-600 rounded-2xl hover:shadow-lg transition-all duration-300 font-semibold border-0">
-              システムガイド
-            </button>
-          </div>
-          </div>
         </div>
       </div>
     </div>
